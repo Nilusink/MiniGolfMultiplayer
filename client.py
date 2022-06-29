@@ -8,7 +8,7 @@ screen = pygame.display.set_mode((w_w, w_h))
 pygame.display.set_caption("Minigolf")
 aktiv = True
 clock = pygame.time.Clock()
-with open('s.json') as f:
+with open('Maps/speichern.json') as f:
     data = json.load(f)
 while aktiv:
     for event in pygame.event.get():
