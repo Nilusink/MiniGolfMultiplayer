@@ -1,5 +1,4 @@
 import pygame as pg
-import typing as tp
 
 
 class _BaseGame:
@@ -8,9 +7,13 @@ class _BaseGame:
         pg.init()
         pg.font.init()
 
+        self.to_draw = []
+
         if window_size is ...:
             screen_info = pg.display.Info()
             window_size = (screen_info.current_w, screen_info.current_h)
+
+        self.window_size = window_size
 
         # create window
         self.times = []
@@ -22,7 +25,7 @@ class _BaseGame:
         self.middle_layer = pg.Surface(window_size, pg.SRCALPHA, 32)
         self.top_layer = pg.Surface(window_size, pg.SRCALPHA, 32)
         self.font = pg.font.SysFont(None, 24)
-        pg.display.set_caption("MiniGOlf")
+        pg.display.set_caption("MiniGolf")
 
 
 # initialize game
