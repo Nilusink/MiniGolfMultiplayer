@@ -6,11 +6,14 @@ running: bool = True
 
 
 def main() -> None:
-    print("main called")
     # create some walls
-    EllipseWall(.1, .1, .8, .8)
-    Wall(Vec2.from_cartesian(.3, .8), Vec2.from_cartesian(.8, .3), 3)
-    Ball(Vec2.from_cartesian(.5, .5), Vec2.from_cartesian(.001, .005))
+    EllipseWall(.1, .1, .8, .8, 1)
+    EllipseWall(.2, 0, .7, 1, 1)
+    Wall(Vec2.from_cartesian(.3, .8), Vec2.from_cartesian(.8, .3), 1)
+
+    Ball(Vec2.from_cartesian(.5, .5)).hit(Vec2.from_cartesian(.008, .004))
+
+    Target(Vec2.from_cartesian(.65, .3))
 
     while running:
         # clear layers
@@ -26,6 +29,7 @@ def main() -> None:
         # draw groups
         Walls.draw(BaseGame.wall_layer)
         Balls.draw(BaseGame.middle_layer)
+        Targets.draw(BaseGame.lowest_layer)
 
         # draw to draw
         for function, args in BaseGame.to_draw:

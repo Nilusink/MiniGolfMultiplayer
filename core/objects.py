@@ -8,31 +8,54 @@ import random
 
 from .basegame import BaseGame
 from .classes import Vec2
-from random import randint
 import pygame as pg
 import typing as tp
 import numpy as np
 import cmath as cm
 
 
+def _is_valid(x: float, y: float) -> bool:
+    """
+    check if x is between 0..2 and y between 0..1
+    """
+    if not 0 <= x <= 2 or not 0 <= y <= 1:
+        return False
+
+    return True
+
+
+def _to_screen_size(x: float, y: float) -> tuple[float, float]:
+    """
+    convert from "percent" scheme to actual screen pixels
+    """
+    if not _is_valid(x, y):
+        raise ValueError("x must be between 0..2. y must be between 0..1")
+
+    x = (x/2) * BaseGame.window_size[0]
+    y *= BaseGame.window_size[1]
+
+    return x, y
+
+
 # groups
 class _Walls(pg.sprite.Group):
-    def collide(self, ball: "Ball") -> tp.Union["Wall", None]:
+    def collide(self, ball: "Ball") -> tp.Union[tuple["Wall", tuple[int, int]], None]:
         """
         check if a sprite collides with a wall
         """
         for wall in self.sprites():
+            print(f"checking for collision with {wall}")
             wall: Wall
-            (x0, y0), (width, height) = wall.get_pygame_values()
 
-            x1 = x0 + width
-            y1 = y0 + width
+            # check if they collide (box)
+            if pg.sprite.collide_rect(wall, ball):
+                print("in box")
+                # check if they collide (by pixel)
+                pos = pg.sprite.collide_mask(ball, wall)
+                if pos:
+                    return wall, pos
 
-            # if x0 < ball.position.x < x1 and y0 < ball.position.y < y1:
-            #     print("in box")
-            if pg.sprite.collide_mask(ball, wall):
-                print("collision")
-                return wall
+            print("done checking")
 
         return
 
@@ -46,65 +69,66 @@ class _Balls(pg.sprite.Group):
                 return user
 
 
+class _Targets(pg.sprite.Group):
+    def collide(self, ball: "Ball") -> tp.Union["Target", None]:
+        """
+        check if a sprite collides with a wall
+        """
+        for target in self.sprites():
+            target: Target
+
+            if pg.sprite.collide_mask(ball, target):
+                return target
+
+        return
+
+
 # actual groups
 Walls = _Walls()
 Balls = _Balls()
+Targets = _Targets()
 
 
 # sprites
 class Wall(pg.sprite.Sprite):
-    thickness: float
-    p0: Vec2
-    p1: Vec2
+    ellipse_rect: pg.Rect
 
-    def __init__(self, p0: Vec2, p1: Vec2, thickness: int) -> None:
-        self.thickness = thickness
-        self.p0 = p0
-        self.p1 = p1
+    def __init__(self, p0, p1, thickness: int = 1) -> None:
+        self.height = abs((p1 - p0).x)
+        self.width = abs((p1 - p0).y)
+        self.x = min([p0.x, p1.x])
+        self.y = min([p0.y, p1.y])
+
+        self._collision_vector = (p0 - p1).normalize()
 
         super().__init__(Walls)
 
-        pos, size = self.get_pygame_values()
+        self.update_rect()
+        self.image = pg.surface.Surface(
+            _to_screen_size(self.width, self.height),
+            pg.SRCALPHA, 32
+        )
 
-        self.image = pg.surface.Surface(size, pg.SRCALPHA, 32)
+        x0 = (p0.x - self.x)
+        y0 = (p0.y - self.y)
 
-        x0 = (p0.x * BaseGame.window_size[0]) - pos[0]
-        y0 = (p0.y * BaseGame.window_size[1]) - pos[1]
+        x1 = (p1.x - self.x)
+        y1 = (p1.y - self.y)
 
-        x1 = (p1.x * BaseGame.window_size[0]) - pos[0]
-        y1 = (p1.y * BaseGame.window_size[1]) - pos[1]
+        (x0, y0) = _to_screen_size(x0, y0)
+        (x1, y1) = _to_screen_size(x1, y1)
 
         pg.draw.line(self.image, (255, 0, 0, 255), (x0, y0), (x1, y1), width=thickness)
 
-        self.update_rect()
-
-    def get_pygame_values(self) -> tuple[list[int, int], list[int, int]]:
-        x0 = min(self.p0.x, self.p1.x)
-        y0 = min(self.p0.y, self.p1.y)
-
-        x1 = max(self.p0.x, self.p1.x)
-        y1 = max(self.p0.y, self.p1.y)
-
-        # go from 0..1 to 0..screensize
-        x0 *= BaseGame.window_size[0]
-        x1 *= BaseGame.window_size[1]
-
-        width = (x1 - x0) * BaseGame.window_size[0]
-        height = (y1 - y0) * BaseGame.window_size[1]
-
-        return [x0, y0], [width, height]
+    def get_pygame_values(self) -> tuple[list[float, float], list[float, float]]:
+        return list(_to_screen_size(self.x, self.y)), list(_to_screen_size(self.width, self.height))
 
     def get_collision_vector(self, _collision_point: Vec2) -> Vec2:
-        return (self.p0 - self.p1).normalize()
+        return self._collision_vector.copy()
 
     def update_rect(self) -> None:
-        pos, size = self.get_pygame_values()
-
-        # make sure the rect is at least 1 pixel tall / wide
-        size[0] = size[0] if size[0] >= 0 else 1
-        size[1] = size[1] if size[1] >= 0 else 1
-
-        self.rect = pg.Rect(*pos, *size)
+        (x, y), (width, height) = self.get_pygame_values()
+        self.rect = pg.Rect(x, y, width, height)
 
 
 class EllipseWall(pg.sprite.Sprite):
@@ -120,19 +144,14 @@ class EllipseWall(pg.sprite.Sprite):
 
         self.update_rect()
         self.image = pg.surface.Surface(
-            (width * BaseGame.window_size[0], height * BaseGame.window_size[1]),
+            _to_screen_size(self.width, self.height),
             pg.SRCALPHA, 32
         )
 
         pg.draw.ellipse(self.image, (255, 0, 0, 255), self.ellipse_rect, width=thickness)
 
     def get_pygame_values(self) -> tuple[list[float, float], list[float, float]]:
-        x = self.x * BaseGame.window_size[0]
-        y = self.y * BaseGame.window_size[1]
-        width = self.width * BaseGame.window_size[0]
-        height = self.width * BaseGame.window_size[1]
-
-        return [x, y], [width, height]
+        return list(_to_screen_size(self.x, self.y)), list(_to_screen_size(self.width, self.height))
 
     def get_collision_vector(self, collision_point: Vec2) -> Vec2:
         p1, p2 = self.focal_points
@@ -179,19 +198,21 @@ class EllipseWall(pg.sprite.Sprite):
 
 class Ball(pg.sprite.Sprite):
     loss_per_sec: float = .000025
-    size: float = .01
-    velocity: Vec2
+    size: float = .025
+    _velocity: Vec2
+    _tries: int = 0
     position: Vec2
     id: str
 
-    def __init__(self, origin: Vec2, velocity: Vec2, user_id: str = ...) -> None:
+    def __init__(self, origin: Vec2, user_id: str = ...) -> None:
         if user_id is ...:
             user_id = str(random.randint(0, 1_000_000))
 
         self.id = user_id
 
-        self.velocity = velocity
-        self.position = origin
+        self.position = origin.copy()
+        self._origin = origin.copy()
+        self._velocity = Vec2()
 
         super().__init__(Balls)
 
@@ -202,40 +223,112 @@ class Ball(pg.sprite.Sprite):
 
     @property
     def screen_size(self) -> float:
-        s = self.size * BaseGame.window_size[0]
+        s = _to_screen_size(self.size, 0)[0]
         return s
 
     @property
     def screen_position(self) -> tuple[float, float]:
-        x = self.position.x * BaseGame.window_size[0]
-        y = self.position.y * BaseGame.window_size[1]
+        return _to_screen_size(self.position.x, self.position.y)
 
-        return x, y
+    @property
+    def tries(self) -> int:
+        """
+        how often the ball was hit to this point
+        """
+        return self._tries
 
     def update_rect(self) -> None:
+        x = (self.position.x - self.size / 2)
+        y = (self.position.y - self.size / 2)
+
         self.rect = pg.Rect(
-            (self.position.x - self.size / 2) * BaseGame.window_size[0],
-            (self.position.y - self.size / 2) * BaseGame.window_size[1],
-            self.size * BaseGame.window_size[0],
-            self.size * BaseGame.window_size[1],
+            *_to_screen_size(x, y),
+            *[self.screen_size] * 2,
         )
 
     def update(self, delta: float) -> None:
-        self.position += self.velocity * delta
+        if self._velocity.length == 0:
+            return
 
-        # if self.velocity.length > 0:
-        #     self.velocity.length -= self.loss_per_sec
+        self.position += self._velocity * delta
 
-        if self.velocity.length < 0:
-            self.velocity.length = 0
+        if self._velocity.length > .0005:
+            self._velocity.length *= .99
+
+        else:
+            self._velocity.length = 0
 
         # check for collision
-        wall = Walls.collide(self)
+        res = Walls.collide(self)
 
-        if wall is not None:
-            self.velocity.reflect(wall.get_collision_vector(Vec2.from_cartesian(*self.screen_position)))
+        if res is not None:
+            wall, pos = res
+            self.position -= self._velocity * delta
+            self._velocity.reflect(wall.get_collision_vector(Vec2.from_cartesian(*pos)))
+            self.position += self._velocity * delta
 
-            for _ in range(4):
-                self.position += self.velocity * delta
+        # check for hitting the target
+        target = Targets.collide(self)
+
+        if target is not None and self._velocity.length < 0.001:
+            self._velocity = Vec2()
+
+        # check if the ball is out of screen
+        if not _is_valid(*self.position.xy):
+            self.reset()
 
         self.update_rect()
+
+    def hit(self, speed: Vec2) -> None:
+        """
+        "hit" a ball with a cup.
+        A ball can only be hit if it stands still (velocity = 0)
+        """
+        if not self._velocity.length == 0:
+            return
+
+        self._tries += 1
+        self._velocity = speed.copy()
+
+    def reset(self) -> None:
+        """
+        but a ball back to its original position (without any velocity
+        """
+        self.position = self._origin.copy()
+        self._velocity = Vec2()
+
+
+class Target(pg.sprite.Sprite):
+    size: float = .01
+    position: Vec2
+
+    def __init__(self, position: Vec2) -> None:
+        self.position = position
+
+        super().__init__(Targets)
+
+        self.image = pg.surface.Surface(
+            (self.screen_size,) * 2,
+            pg.SRCALPHA, 32,
+        )
+
+        self.update_rect()
+
+        pg.draw.circle(self.image, (255, 255, 0, 255), (self.screen_size / 2,) * 2, self.screen_size / 2)
+
+    @property
+    def screen_size(self) -> float:
+        s = _to_screen_size(self.size, 0)[0]
+        return s
+
+    @property
+    def screen_position(self) -> tuple[float, float]:
+        return _to_screen_size(self.position.x, self.position.y)
+
+    def update_rect(self) -> None:
+        x, y = self.screen_position
+
+        x -= self.screen_size / 2
+        y -= self.screen_size / 2
+
+        self.rect = pg.Rect(x, y, *(self.screen_size,) * 2)
