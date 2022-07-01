@@ -18,7 +18,7 @@ import socket
 
 
 ################################################################################
-#                           Constances / Settings                              #
+#                           Constancs / Settings                              #
 ################################################################################
 
 ENCRYPTION: str = "UTF-32"
@@ -123,7 +123,19 @@ class Server(socket.socket):
         self.__events = []
         return events
 
-    def send_data(self, msg: dict) -> None:
+    def send_user(self, user_id: str, msg: dict) -> None:
+        """
+        Sends messages to a single clients/users
+
+        :param user_id: ID of the user/client to send to
+        :param msg: Message to send to all users/clients
+        """
+
+        msg_str = dumps(msg)
+        msg_byte = msg_str.encode(ENCRYPTION)
+        self.__clients[user_id].send(msg_byte)
+
+    def send_all(self, msg: dict) -> None:
         """
         Sends messages to all clients/users
 
