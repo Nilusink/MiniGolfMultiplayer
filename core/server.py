@@ -1,7 +1,7 @@
 """
 MelonenBuby 2022
 
-Author: Lukas Krahbichler
+Authors: Lukas Krahbichler, Nilusink
 Date:   29.06.2022
 """
 
@@ -29,7 +29,7 @@ PORT: int = 8888
 #                                 Exceptions                                   #
 ################################################################################
 
-class MutipleDataReceived(Exception):
+class MultipleDataReceived(Exception):
     ...
 
 
@@ -98,7 +98,7 @@ class Server(socket.socket):
         self.__events = []
         self.__id_counter = 0
 
-        Thread(target=self.__new_clients(), args=()).start()
+        Thread(target=self.__new_clients, args=()).start()
 
     def _print(self, *msg: any) -> None:
         """
@@ -143,9 +143,13 @@ class Server(socket.socket):
         """
 
         for client in self.__clients:
-            msg_str = dumps(msg)
-            msg_byte = msg_str.encode(ENCRYPTION)
-            self.__clients[client].send(msg_byte)
+            try:
+                msg_str = dumps(msg)
+                msg_byte = msg_str.encode(ENCRYPTION)
+                self.__clients[client].send(msg_byte)
+
+            except OSError:
+                continue
 
     def __client_receive_handler(self, user_id: str, client: socket.socket) -> None:
         """
@@ -154,13 +158,15 @@ class Server(socket.socket):
         :param user_id: ID of the user/client
         :param client: Socket of the user/client
         """
+        client.settimeout(.1)
 
         while True:
             try:
                 msg = client.recv(1024)
+
                 if msg == b"":
                     client.close()
-                    return
+                    raise ConnectionResetError  # to disconnect the user (event)
 
                 msg_str = msg.decode(ENCRYPTION)
                 msg_dic = loads(msg_str)
@@ -168,11 +174,18 @@ class Server(socket.socket):
                 event = UserShoot(user_id=user_id, time=time(), msg=msg_dic)
                 for single_event in self.__events:
                     if type(single_event) == UserShoot and single_event.user_id == user_id:
-                        raise MutipleDataReceived("Client already sent data")
+                        raise MultipleDataReceived("Client already sent data")
                 self.__events.append(event)
                 self._print(f"{user_id} SENT: {msg_dic}")
+
             except ConnectionResetError:
                 self.__events.append(UserRem(user_id=user_id, time=time()))
+
+            except TimeoutError:
+                continue
+
+            except OSError:
+                return
 
     def __new_clients(self) -> None:
         """

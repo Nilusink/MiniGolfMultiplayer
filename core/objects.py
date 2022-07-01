@@ -1,4 +1,6 @@
 """
+core/objects.py
+
 classes for all walls and balls (sprites) and groups
 
 Author:
@@ -28,8 +30,8 @@ def _to_screen_size(x: float, y: float) -> tuple[float, float]:
     """
     convert from "percent" scheme to actual screen pixels
     """
-    if not _is_valid(x, y):
-        raise ValueError("x must be between 0..2. y must be between 0..1")
+    # if not _is_valid(x, y):
+    #     raise ValueError("x must be between 0..2. y must be between 0..1")
 
     x = (x/2) * BaseGame.window_size[0]
     y *= BaseGame.window_size[1]
@@ -44,29 +46,29 @@ class _Walls(pg.sprite.Group):
         check if a sprite collides with a wall
         """
         for wall in self.sprites():
-            print(f"checking for collision with {wall}")
             wall: Wall
 
             # check if they collide (box)
             if pg.sprite.collide_rect(wall, ball):
-                print("in box")
                 # check if they collide (by pixel)
                 pos = pg.sprite.collide_mask(ball, wall)
                 if pos:
                     return wall, pos
 
-            print("done checking")
-
         return
 
 
 class _Balls(pg.sprite.Group):
-    def get_user(self, user_id: str) -> None:
+    def get_user(self, user_id: str) -> "Ball":
         for user in self.sprites():
             user: Balls
 
             if user.id == user_id:
                 return user
+
+    def rem_user(self, user_id: str) -> None:
+        user = self.get_user(user_id=user_id)
+        self.remove(user)
 
 
 class _Targets(pg.sprite.Group):
@@ -91,21 +93,32 @@ Targets = _Targets()
 
 # sprites
 class Wall(pg.sprite.Sprite):
+    extra_size: int = 10
     ellipse_rect: pg.Rect
 
     def __init__(self, p0, p1, thickness: int = 1) -> None:
-        self.height = abs((p1 - p0).x)
-        self.width = abs((p1 - p0).y)
         self.x = min([p0.x, p1.x])
         self.y = min([p0.y, p1.y])
+
+        x1 = max([p0.x, p1.x])
+        y1 = max([p0.y, p1.y])
+
+        self.width = x1 - self.x
+        self.height = y1 - self.y
 
         self._collision_vector = (p0 - p1).normalize()
 
         super().__init__(Walls)
 
         self.update_rect()
+
+        width, height = _to_screen_size(self.width, self.height)
+
+        width += 2 * self.extra_size
+        height += 2 * self.extra_size
+
         self.image = pg.surface.Surface(
-            _to_screen_size(self.width, self.height),
+            (width, height),
             pg.SRCALPHA, 32
         )
 
@@ -118,7 +131,17 @@ class Wall(pg.sprite.Sprite):
         (x0, y0) = _to_screen_size(x0, y0)
         (x1, y1) = _to_screen_size(x1, y1)
 
+        x0 += self.extra_size
+        y0 += self.extra_size
+        x1 += self.extra_size
+        y1 += self.extra_size
+
         pg.draw.line(self.image, (255, 0, 0, 255), (x0, y0), (x1, y1), width=thickness)
+
+        _pos, (width, height) = self.get_pygame_values()
+        width += 2 * self.extra_size - 2
+        height += 2 * self.extra_size - 2
+        pg.draw.rect(self.image, (125, 0, 0, 125), pg.Rect(1, 1, width, height), width=1)
 
     def get_pygame_values(self) -> tuple[list[float, float], list[float, float]]:
         return list(_to_screen_size(self.x, self.y)), list(_to_screen_size(self.width, self.height))
@@ -128,6 +151,12 @@ class Wall(pg.sprite.Sprite):
 
     def update_rect(self) -> None:
         (x, y), (width, height) = self.get_pygame_values()
+        x -= self.extra_size
+        y -= self.extra_size
+
+        width += 2 * self.extra_size
+        height += 2 * self.extra_size
+
         self.rect = pg.Rect(x, y, width, height)
 
 
@@ -218,6 +247,12 @@ class Ball(pg.sprite.Sprite):
 
         self.image = pg.surface.Surface([self.screen_size] * 2, pg.SRCALPHA, 32)
         pg.draw.circle(self.image, (255, 0, 0, 255), [self.screen_size / 2] * 2, radius=self.screen_size / 2)
+
+        identifier = user_id[-1]
+
+        text = BaseGame.font.render(identifier, False, (0, 0, 0, 255))
+
+        self.image.blit(text, (6, 5))
 
         self.update_rect()
 
