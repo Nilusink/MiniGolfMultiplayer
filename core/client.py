@@ -1,7 +1,9 @@
 """
-MelonenBuby 2022
+core/client.py
 
-Author: Lukas Krahbichler
+Client-class for cummunication with the server
+
+Author: MelonenBuby
 Date:   29.06.2022
 """
 
@@ -12,9 +14,7 @@ Date:   29.06.2022
 
 from threading import Thread
 import socket
-import time
 import json
-
 
 ################################################################################
 #                           Constants / Settings                              #
@@ -32,6 +32,7 @@ PORT: int = 8888
 class Client(socket.socket):
     __received_msg: list[dict]
     debug_mode: bool
+    running: bool
     ID: str
 
     def __init__(self, server_ip: str, port: int, debug_mode: bool | None = False) -> None:
@@ -51,6 +52,7 @@ class Client(socket.socket):
         self._print(f"<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>")
 
         self.__received_msg = []
+        self.running = True
         self.ID = ""
 
         self.connect((server_ip, port))
@@ -69,7 +71,7 @@ class Client(socket.socket):
     @property
     def received_msg(self) -> dict | None:
         """
-        Returns the oldest received message
+        Returns the oldest received message and deletes it's caching
         :return: Dictonary of the message or none if there is no new messages
         """
 
@@ -98,25 +100,30 @@ class Client(socket.socket):
         """
         first = True
 
-        while True:
-            msg = self.recv(1024)
-            if msg == b"":
-                self.close()
-                return
-            else:
-                msg_str = msg.decode(ENCRYPTION)
-                if first:
-                    first = False
-                    self.ID = msg_str
-                    self._print(f"GOT ID: {self.ID}")
-
+        try:
+            while self.running:
+                msg = self.recv(1024)
+                if msg == b"":
+                    self.close()
+                    return
                 else:
-                    try:
-                        msg_dic = json.loads(msg_str)
-                        self.__received_msg.append(msg_dic)
+                    msg_str = msg.decode(ENCRYPTION)
+                    if first:
+                        first = False
+                        self.ID = msg_str
+                        self._print(f"GOT ID: {self.ID}")
+                    else:
+                        try:
+                            msg_dic = json.loads(msg_str)
+                            self.__received_msg.append(msg_dic)
+                        except json.decoder.JSONDecodeError:
+                            pass
+        except ConnectionAbortedError:
+            return
 
-                    except json.JSONDecodeError:
-                        continue
+    def end(self) -> None:
+        self.running = False
+        self.close()
 
 
 if __name__ == "__main__":
@@ -128,3 +135,4 @@ if __name__ == "__main__":
     while True:
         cmd_input = input(">>> ")
         exec(f"cl.{cmd_input}")
+

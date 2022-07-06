@@ -1,7 +1,9 @@
 """
-MelonenBuby 2022
+core/server.py
 
-Authors: Lukas Krahbichler, Nilusink
+Server-class for cummunication with events on serverside
+
+Authors: MelonenBuby, Nilusink
 Date:   29.06.2022
 """
 
@@ -13,7 +15,7 @@ from dataclasses import dataclass
 from json import dumps, loads
 from threading import Thread
 from typing import Union
-from time import time
+from time import time, sleep
 import socket
 
 
@@ -74,6 +76,7 @@ class Server(socket.socket):
     __events: list[Union[UserAdd, UserRem, UserShoot]]
     __id_counter: int
     debug_mode: bool
+    running: bool
 
     def __init__(self, debug_mode: bool | None = False) -> None:
         """
@@ -94,6 +97,7 @@ class Server(socket.socket):
         self.bind(("0.0.0.0", PORT))
         self.listen()
 
+        self.running = True
         self.__clients = {}
         self.__events = []
         self.__id_counter = 0
@@ -159,8 +163,9 @@ class Server(socket.socket):
         :param client: Socket of the user/client
         """
         client.settimeout(.1)
+        connected = True
 
-        while True:
+        while connected:
             try:
                 msg = client.recv(1024)
 
@@ -179,7 +184,9 @@ class Server(socket.socket):
                 self._print(f"{user_id} SENT: {msg_dic}")
 
             except ConnectionResetError:
+                self._print(f"USER DISCONNECTED: {user_id}")
                 self.__events.append(UserRem(user_id=user_id, time=time()))
+                connected = False
 
             except TimeoutError:
                 continue
@@ -192,7 +199,7 @@ class Server(socket.socket):
         Looks for new clients and assigns them a new thread
         """
 
-        while True:
+        while self.running:
             cl, add = self.accept()
 
             user_id = "user_{:03d}".format(self.__id_counter)
@@ -206,6 +213,11 @@ class Server(socket.socket):
 
             self.__id_counter += 1
 
+    def end(self) -> None:
+        self.running = False
+
 
 if __name__ == "__main__":
     Server(debug_mode=True)
+
+
