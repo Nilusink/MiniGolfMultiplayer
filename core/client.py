@@ -21,7 +21,7 @@ import json
 ################################################################################
 
 SERVER_IP: str = "127.0.0.1"
-ENCRYPTION: str = "UTF-32"
+ENCRYPTION: str = "UTF-8"
 PORT: int = 8888
 
 
@@ -31,11 +31,13 @@ PORT: int = 8888
 
 class Client(socket.socket):
     __received_msg: list[dict]
+    package_size: int
     debug_mode: bool
     running: bool
     ID: str
 
-    def __init__(self, server_ip: str, port: int, debug_mode: bool | None = False) -> None:
+    def __init__(self, server_ip: str, port: int, debug_mode: bool | None = False,
+                 package_size: int | None = 1024) -> None:
         """
         Client for communicating between game calculating and game GUI
         """
@@ -51,6 +53,7 @@ class Client(socket.socket):
         self._print()
         self._print(f"<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>")
 
+        self.package_size = package_size
         self.__received_msg = []
         self.running = True
         self.ID = ""
@@ -96,17 +99,17 @@ class Client(socket.socket):
 
     def __receive(self) -> None:
         """
-        Receives messages from the server and saves them
+        Receives messages from the server in packages and saves them
         """
         first = True
 
         try:
             while self.running:
-                msg = self.recv(10_240)
+                msg = self.recv(10)
                 if msg == b"":
+                    self._print("SERVER CLOSED CONNECTION")
                     self.close()
                     return
-
                 else:
                     msg_str = msg.decode(ENCRYPTION)
                     if first:
@@ -114,17 +117,29 @@ class Client(socket.socket):
                         self.ID = msg_str
                         self._print(f"GOT ID: {self.ID}")
                     else:
-                        try:
-                            msg_dic = json.loads(msg_str)
-                            self.__received_msg.append(msg_dic)
+                        recv = ""
 
+                        for index in range(int(msg_str) // self.package_size):
+                            package = self.recv(self.package_size)
+                            recv += package.decode(ENCRYPTION)
+                        last_pack = self.recv(int(msg_str) % self.package_size)
+                        recv += last_pack.decode(ENCRYPTION)
+
+                        try:
+                            msg_dic = json.loads(recv)
+                            self.__received_msg.append(msg_dic)
                         except json.decoder.JSONDecodeError:
-                            continue
+                            pass
 
         except ConnectionAbortedError:
+            self._print("CONNECTION ABORTED")
             return
 
     def end(self) -> None:
+        """
+        End the Communication-Thread and close the connection
+        """
+
         self.running = False
         self.close()
 

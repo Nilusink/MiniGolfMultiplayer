@@ -23,7 +23,7 @@ import socket
 #                           Constants / Settings                              #
 ################################################################################
 
-ENCRYPTION: str = "UTF-32"
+ENCRYPTION: str = "UTF-8"
 PORT: int = 8888
 
 
@@ -82,7 +82,6 @@ class Server(socket.socket):
         """
         Server for communicating between game calculating and game GUI
         """
-
         super().__init__(socket.AF_INET, socket.SOCK_STREAM)
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.debug_mode = debug_mode
@@ -111,7 +110,6 @@ class Server(socket.socket):
 
         :param msg: Messages to print
         """
-
         if self.debug_mode:
             print("SERVER:", *msg)
 
@@ -123,7 +121,6 @@ class Server(socket.socket):
 
         :return List of all different events
         """
-
         events = self.__events
         self.__events = []
         return events
@@ -135,7 +132,6 @@ class Server(socket.socket):
         :param user_id: ID of the user/client to send to
         :param msg: Message to send to all users/clients
         """
-
         msg_str = dumps(msg)
         msg_byte = msg_str.encode(ENCRYPTION)
         self.__clients[user_id].send(msg_byte)
@@ -146,11 +142,12 @@ class Server(socket.socket):
 
         :param msg: Message to send to all users/clients
         """
+        msg_str = dumps(msg)
+        msg_byte = msg_str.encode(ENCRYPTION)
 
         for client in self.__clients.copy():
             try:
-                msg_str = dumps(msg)
-                msg_byte = msg_str.encode(ENCRYPTION)
+                self.__clients[client].send(str(len(msg_byte)).encode(ENCRYPTION))
                 self.__clients[client].send(msg_byte)
 
             except OSError:
@@ -164,9 +161,8 @@ class Server(socket.socket):
         :param client: Socket of the user/client
         """
         client.settimeout(.1)
-        connected = True
 
-        while connected:
+        while self.running:
             try:
                 msg = client.recv(1024)
 
@@ -187,7 +183,7 @@ class Server(socket.socket):
             except ConnectionResetError:
                 self._print(f"USER DISCONNECTED: {user_id}")
                 self.__events.append(UserRem(user_id=user_id, time=time()))
-                connected = False
+                return
 
             except TimeoutError:
                 continue
@@ -195,13 +191,18 @@ class Server(socket.socket):
             except OSError:
                 return
 
+        self._print(f"DISCONNECT USER: {user_id}")
+        client.close()
+
     def __new_clients(self) -> None:
         """
         Looks for new clients and assigns them a new thread
         """
-
         while self.running:
-            cl, add = self.accept()
+            try:
+                cl, add = self.accept()
+            except OSError:
+                return
 
             user_id = "user_{:03d}".format(self.__id_counter)
             self._print("NEW CLIENT: ", user_id, cl, add)
@@ -215,10 +216,15 @@ class Server(socket.socket):
             self.__id_counter += 1
 
     def end(self) -> None:
+        """
+        Close all connections to the clients/users and end the new_clients-Thread
+        """
         self.running = False
+        self.close()
 
 
 if __name__ == "__main__":
-    Server(debug_mode=True)
-
-
+    s = Server(debug_mode=True)
+    while True:
+        s.send_all({1: 2, 2: "HELLO"})
+        sleep(1)
