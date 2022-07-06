@@ -154,8 +154,8 @@ class Wall(pg.sprite.Sprite):
 
     def update_rect(self) -> None:
         (x, y), (width, height) = self.get_pygame_values()
-        x -= self.extra_size * 2
-        y -= self.extra_size * 2
+        x -= self.extra_size  # * 2
+        y -= self.extra_size  # * 2
 
         width += 2 * self.extra_size
         height += 2 * self.extra_size
@@ -230,6 +230,7 @@ class EllipseWall(pg.sprite.Sprite):
 
 class Ball(pg.sprite.Sprite):
     loss_per_sec: float = .000025
+    __was_target: bool = False
     size: float = .025
     _velocity: Vec2
     _tries: int = 0
@@ -280,20 +281,23 @@ class Ball(pg.sprite.Sprite):
         return self._velocity
 
     def update_rect(self) -> None:
-        x = (self.position.x - self.size / 2)
-        y = (self.position.y - self.size / 2)
-
         self.rect = pg.Rect(
-            *_to_screen_size(x, y),
+            *_to_screen_size(*self.position.xy),
             *[self.screen_size] * 2,
         )
 
     def update(self, delta: float) -> None:
         # check for hitting the target
+        if self.__was_target:
+            # user thinks it's still traveling
+            self._velocity = Vec2.from_polar(0, 1)
+            return
+
         target = Targets.collide(self)
 
         if target is not None and self._velocity.length < 0.001:
             self._velocity = Vec2()
+            self.__was_target = True
 
         if self._velocity.length == 0:
             return
