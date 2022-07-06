@@ -17,7 +17,7 @@ import json
 
 
 ################################################################################
-#                           Constancs / Settings                              #
+#                           Constants / Settings                              #
 ################################################################################
 
 SERVER_IP: str = "127.0.0.1"
@@ -51,6 +51,7 @@ class Client(socket.socket):
         self._print(f"<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>")
 
         self.__received_msg = []
+        self.ID = ""
 
         self.connect((server_ip, port))
         Thread(target=self.__receive, args=()).start()
