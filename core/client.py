@@ -21,7 +21,7 @@ import json
 #                           Constants / Settings                              #
 ################################################################################
 
-SERVER_IP: str = "127.0.0.1"  # 192.168.0.138
+SERVER_IP: str = "192.168.0.138"  # 192.168.0.138
 ENCRYPTION: str = "UTF-8"
 PORT: int = 8888
 
@@ -142,11 +142,10 @@ class Client(socket.socket):
                             self._print(f"GOT ID: {self.ID}")
                         else:
                             msg_dic = json.loads(msg_str)
+                            self._print("GOT DATA: ", msg_dic)
                             self.__received_msg.append(msg_dic)
-                        print("SUCCESS")
                     except (ConnectionResetError, struct.error, socket.timeout, json.decoder.JSONDecodeError) as error:
-                        print("LOST", error)
-                        print_exc()
+                        print("FAIL")
                         continue
 
             except socket.timeout:

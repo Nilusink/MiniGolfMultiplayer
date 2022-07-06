@@ -221,10 +221,10 @@ class Server(socket.socket):
             except OSError:
                 return
 
-            user_id = "@user_{:03d}#".format(self.__id_counter)
+            user_id = "user_{:03d}".format(self.__id_counter)
             self._print("NEW CLIENT: ", user_id, cl, add)
 
-            cl.send(user_id.encode(ENCRYPTION))
+            cl.send(("@"+user_id+"#").encode(ENCRYPTION))
 
             self.__events.append(UserAdd(user_id=user_id, time=time()))
             self.__clients[user_id] = cl
