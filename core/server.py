@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from json import dumps, loads
 from threading import Thread
 from typing import Union
-from time import time, sleep
+from time import time
 import socket
 
 
@@ -68,6 +68,9 @@ class UserShoot: # noqa
 
 @dataclass(frozen=True)
 class UserRespawn:
+    """
+    Event for user respawn
+    """
     user_id: str
     time: float
 
@@ -78,10 +81,10 @@ class UserRespawn:
 
 class Server(socket.socket):
     __clients: dict[str, socket.socket]
-    __events: list[Union[UserAdd, UserRem, UserShoot]]
+    __events: list[Union[UserAdd, UserRem, UserShoot, UserRespawn]]
     __id_counter: int
     debug_mode: bool
-    running: bool
+    __running: bool
 
     def __init__(self, debug_mode: bool | None = False) -> None:
         """
@@ -102,7 +105,7 @@ class Server(socket.socket):
         self.bind(("0.0.0.0", PORT))
         self.listen()
 
-        self.running = True
+        self.__running = True
         self.__clients = {}
         self.__events = []
         self.__id_counter = 0
@@ -110,7 +113,7 @@ class Server(socket.socket):
         Thread(target=self.__new_clients, args=()).start()
 
     @property
-    def events(self) -> list[UserAdd, UserRem, UserShoot]:
+    def events(self) -> list[UserAdd, UserRem, UserShoot, UserRespawn]:
         """
         Returns events since the last event query
         ATTENTION: This deletes the caching of the events
@@ -159,7 +162,7 @@ class Server(socket.socket):
         """
         client.settimeout(.1)
 
-        while self.running:
+        while self.__running:
             try:
                 msg = client.recv(1024)
 
@@ -168,25 +171,28 @@ class Server(socket.socket):
                     raise ConnectionResetError  # to disconnect the user (event)
 
                 msg_str = msg.decode(ENCRYPTION)
-                msg_dic = loads(msg_str)
+                if msg_str == "PING":
+                    client.send("@PONG#".encode(ENCRYPTION))
+                else:
+                    msg_dic = loads(msg_str)
 
-                match msg_dic["type"]:
-                    case "shoot":
-                        event = UserShoot(user_id=user_id, time=time(), msg=msg_dic["content"])
+                    match msg_dic["type"]:
+                        case "shoot":
+                            event = UserShoot(user_id=user_id, time=time(), msg=msg_dic["content"])
 
-                    case "respawn":
-                        print("adding respawn")
-                        event = UserRespawn(user_id=user_id, time=time())
+                        case "respawn":
+                            print("adding respawn")
+                            event = UserRespawn(user_id=user_id, time=time())
 
-                    case _:
-                        raise NotImplementedError(f"Unknown event type: {msg_dic['type']}")
+                        case _:
+                            raise NotImplementedError(f"Unknown event type: {msg_dic['type']}")
 
-                for single_event in self.__events:
-                    if type(single_event) == UserShoot and single_event.user_id == user_id:
-                        raise MultipleDataReceived("Client already sent data")
+                    for single_event in self.__events:
+                        if type(single_event) == UserShoot and single_event.user_id == user_id:
+                            raise MultipleDataReceived("Client already sent data")
 
-                self.__events.append(event)
-                self._print(f"{user_id} SENT: {msg_dic}")
+                    self.__events.append(event)
+                    self._print(f"{user_id} SENT: {msg_dic}")
 
             except ConnectionResetError:
                 self._print(f"USER DISCONNECTED: {user_id}")
@@ -206,7 +212,7 @@ class Server(socket.socket):
         """
         Looks for new clients and assigns them a new thread
         """
-        while self.running:
+        while self.__running:
             try:
                 cl, add = self.accept()
             except OSError:
@@ -236,7 +242,7 @@ class Server(socket.socket):
         """
         Close all connections to the clients/users and end the new_clients-Thread
         """
-        self.running = False
+        self.__running = False
         self.close()
 
 

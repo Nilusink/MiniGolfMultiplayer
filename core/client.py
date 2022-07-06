@@ -13,6 +13,7 @@ Date:   29.06.2022
 ################################################################################
 
 from threading import Thread
+from time import time
 import socket
 import json
 
@@ -20,7 +21,7 @@ import json
 #                           Constants / Settings                              #
 ################################################################################
 
-SERVER_IP: str = "192.168.0.138"
+SERVER_IP: str = "127.0.0.1"
 ENCRYPTION: str = "UTF-8"
 PORT: int = 8888
 
@@ -31,8 +32,9 @@ PORT: int = 8888
 
 class Client(socket.socket):
     __received_msg: list[dict]
-    __running: bool
+    __ping_trigger: int
     debug_mode: bool
+    __running: bool
     ID: str
 
     def __init__(self, server_ip: str, port: int, debug_mode: bool | None = False) -> None:
@@ -52,6 +54,7 @@ class Client(socket.socket):
         self._print(f"<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>")
 
         self.__received_msg = []
+        self.__ping_trigger = 0
         self.__running = True
         self.ID = ""
 
@@ -90,18 +93,21 @@ class Client(socket.socket):
                     msg_str = data.decode(ENCRYPTION)
                     recv = False
                     data = bytearray()
-                    try:
-                        if first:
-                            first = False
-                            self.ID = msg_str
-                            self._print(f"GOT ID: {self.ID}")
-                        else:
-                            msg_dic = json.loads(msg_str)
-                            self.__received_msg.append(msg_dic)
+                    if msg_str == "PONG":
+                        self.__ping_trigger = 0
+                    else:
+                        try:
+                            if first:
+                                first = False
+                                self.ID = msg_str
+                                self._print(f"GOT ID: {self.ID}")
+                            else:
+                                msg_dic = json.loads(msg_str)
+                                self.__received_msg.append(msg_dic)
 
-                    except (ConnectionResetError, socket.timeout, json.decoder.JSONDecodeError):
-                        self._print("FAIL")
-                        continue
+                        except (ConnectionResetError, socket.timeout, json.decoder.JSONDecodeError):
+                            self._print("FAIL", msg_str)
+                            continue
 
             except socket.timeout:
                 continue
@@ -139,6 +145,25 @@ class Client(socket.socket):
 
         self.send(msg_byte)
 
+    def ping(self, timeout: float | None = 1) -> int:
+        """
+        Returns the ping
+
+        :param timeout: Timeout in seconds
+        :return: Ping in milliseconds
+        """
+
+        self.send("PING".encode(ENCRYPTION))
+        self.__ping_trigger = 1
+        time_start = time()
+
+        while self.__ping_trigger == 1:
+            if time()-time_start > timeout:
+                raise TimeoutError("Ping-Pong was not sucessfull in time")
+        ping: int = int((time()-time_start)*1000)
+        self._print(f"PING: {ping}")
+        return ping
+
     def _print(self, *msg: any) -> None:
         """
         Only print if debug mode is on
@@ -158,6 +183,7 @@ class Client(socket.socket):
 
 if __name__ == "__main__":
     cl = Client(SERVER_IP, PORT, debug_mode=True)
+    cl.ping(0)
     print("\n>>> Client - CMD - Control <<<")
     print("Commands: ")
     print(" - send_data(msg)    |   Send a message to the server")
