@@ -16,6 +16,9 @@ import numpy as np
 import cmath as cm
 
 
+MAX_SPEED: float = .04
+
+
 def _is_valid(x: float, y: float) -> bool:
     """
     check if x is between 0..2 and y between 0..1
@@ -151,8 +154,8 @@ class Wall(pg.sprite.Sprite):
 
     def update_rect(self) -> None:
         (x, y), (width, height) = self.get_pygame_values()
-        x -= self.extra_size
-        y -= self.extra_size
+        x -= self.extra_size * 2
+        y -= self.extra_size * 2
 
         width += 2 * self.extra_size
         height += 2 * self.extra_size
@@ -286,13 +289,19 @@ class Ball(pg.sprite.Sprite):
         )
 
     def update(self, delta: float) -> None:
+        # check for hitting the target
+        target = Targets.collide(self)
+
+        if target is not None and self._velocity.length < 0.001:
+            self._velocity = Vec2()
+
         if self._velocity.length == 0:
             return
 
         self.position += self._velocity * delta
 
-        if self._velocity.length > .0005:
-            self._velocity.length *= .99
+        if self._velocity.length > 0:
+            self._velocity.length -= MAX_SPEED / 200
 
         else:
             self._velocity.length = 0
@@ -305,12 +314,6 @@ class Ball(pg.sprite.Sprite):
             self.position -= self._velocity * delta
             self._velocity.reflect(wall.get_collision_vector(Vec2.from_cartesian(*pos)))
             self.position += self._velocity * delta
-
-        # check for hitting the target
-        target = Targets.collide(self)
-
-        if target is not None and self._velocity.length < 0.001:
-            self._velocity = Vec2()
 
         # check if the ball is out of screen
         if not _is_valid(*self.position.xy):

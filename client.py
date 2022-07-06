@@ -9,6 +9,7 @@ Nilusink
 """
 from core.client import Client, Thread
 from core.classes import Vec2
+from traceback import format_exc
 import pygame
 import json
 
@@ -92,24 +93,28 @@ def update_handler() -> None:
     """
     global player
 
-    while True:
-        ball_pos = client.received_msg
-        if ball_pos is None:
-            continue
+    while aktiv:
+        try:
+            ball_pos = client.received_msg
+            if ball_pos is None:
+                continue
 
-        while len(Balls.sprites()) < len(ball_pos["balls"]):
-            Ball((0, 0))
+            while len(Balls.sprites()) < len(ball_pos["balls"]):
+                Ball((0, 0))
 
-        for i, ball in enumerate(ball_pos["balls"]):
-            current_ball: Ball = Balls.sprites()[i]
-            if client.ID == ball["id"]:  # check if the currently updated ball is the player
-                player = current_ball
+            for i, ball in enumerate(ball_pos["balls"]):
+                current_ball: Ball = Balls.sprites()[i]
+                if client.ID == ball["id"]:  # check if the currently updated ball is the player
+                    player = current_ball
 
-            x = ball["x"]
-            y = ball["y"]
+                x = ball["x"]
+                y = ball["y"]
 
-            current_ball.update_pos(x, y)
-            current_ball.velocity = Vec2.from_cartesian(*ball["vel"])
+                current_ball.update_pos(x, y)
+                current_ball.velocity = Vec2.from_cartesian(*ball["vel"])
+
+        except (Exception,):
+            print(f"exception in thread update-handle:\n{format_exc()}\n")
 
 
 Thread(target=update_handler).start()
@@ -135,7 +140,7 @@ while aktiv:
     top_layer.fill((0, 0, 0, 0))
 
     total = data["total"]
-    # draw walls
+    # draw walls and targets
     for i in range(1, total + 1):
         i = str(i)
         p1_x = data[i]["p1_x"]
@@ -146,13 +151,17 @@ while aktiv:
         # print(p2_x*w_w)
         pygame.draw.line(screen, white, (p1_x * w_w, p1_y * w_h), (p2_x * w_w, p2_y * w_h))
 
+    target_pos = data["target"]
+
+    pygame.draw.circle(screen, (255, 255, 0, 255), (target_pos[0] * w_w, target_pos[1] * w_h), 10)
+
     # draw player "aim"
     if player is not ...:
         if player.velocity.length == 0:  # only draw when standing still
             max_rad = 150
             min_rad = 25
             pos = player.screen_center
-            pygame.draw.circle(top_layer, (255, 0, 0, 50), pos, max_rad)        # lighter layer
+            pygame.draw.circle(top_layer, (255, 0, 0, 40), pos, max_rad)        # lighter layer
             pygame.draw.circle(top_layer, (0, 0, 0, 255), pos, min_rad)
             pygame.draw.circle(top_layer, (255, 0, 0, 255), pos, max_rad, 1)    # outer circle
             pygame.draw.circle(top_layer, (255, 0, 0, 255), pos, min_rad, 1)    # inner circle
@@ -161,6 +170,7 @@ while aktiv:
             delta = mouse_pos - pos
 
             if min_rad < delta.length < max_rad:
+                pygame.draw.circle(top_layer, (255, 255, 255, 125), pos.xy, delta.length, 1)    # mouse indicator circle
                 pygame.draw.circle(top_layer, (255, 255, 255, 255), mouse_pos.xy, 5)    # mouse indicator
 
                 if mouse_up:    # shot
@@ -181,6 +191,8 @@ while aktiv:
 
     pygame.display.flip()
     clock.tick(60)
+
+client.end()
 pygame.quit()
 quit()
 # "": {"p1_x": 0., "p1_y": 0., "p2_x": 0., "p2_y": 0.}

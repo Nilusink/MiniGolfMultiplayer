@@ -84,6 +84,7 @@ class Server(socket.socket):
         """
 
         super().__init__(socket.AF_INET, socket.SOCK_STREAM)
+        self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         self.debug_mode = debug_mode
 
         self._print(f"<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>")
@@ -146,7 +147,7 @@ class Server(socket.socket):
         :param msg: Message to send to all users/clients
         """
 
-        for client in self.__clients:
+        for client in self.__clients.copy():
             try:
                 msg_str = dumps(msg)
                 msg_byte = msg_str.encode(ENCRYPTION)

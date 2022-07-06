@@ -102,10 +102,11 @@ class Client(socket.socket):
 
         try:
             while self.running:
-                msg = self.recv(1024)
+                msg = self.recv(10_240)
                 if msg == b"":
                     self.close()
                     return
+
                 else:
                     msg_str = msg.decode(ENCRYPTION)
                     if first:
@@ -116,8 +117,10 @@ class Client(socket.socket):
                         try:
                             msg_dic = json.loads(msg_str)
                             self.__received_msg.append(msg_dic)
+
                         except json.decoder.JSONDecodeError:
-                            pass
+                            continue
+
         except ConnectionAbortedError:
             return
 

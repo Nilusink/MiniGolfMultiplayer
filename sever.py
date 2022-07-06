@@ -13,7 +13,6 @@ import json
 
 
 running: bool = True
-max_speed: float = .02
 
 
 def main() -> None:
@@ -25,6 +24,11 @@ def main() -> None:
 
     num_points = config["total"]
 
+    # draw target
+    pos = config["target"]
+    Target(Vec2.from_cartesian(pos[0] * 2, pos[1]))
+
+    # draw walls
     for i in range(1, num_points + 1):
         points = config[str(i)]
         p0 = Vec2.from_cartesian(points["p1_x"] * 2, points["p1_y"])
@@ -59,9 +63,7 @@ def main() -> None:
                         direction = Vec2.from_cartesian(*event.msg["vector"])
 
                         direction.length /= 2**0.5
-                        direction.length *= max_speed
-
-                        print(f"hitting with {direction.xy}")
+                        direction.length *= MAX_SPEED
 
                         user.hit(direction)
 
@@ -73,8 +75,7 @@ def main() -> None:
         send updated ball positions to clients
         """
         out: dict[str, list] = {"balls": []}
-
-        for ball in Balls.sprites():
+        for ball in Balls.sprites().copy():
             ball: Ball
 
             out["balls"].append({
