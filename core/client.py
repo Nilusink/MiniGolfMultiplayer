@@ -12,7 +12,6 @@ Date:   29.06.2022
 #                                Import Modules                                #
 ################################################################################
 import struct
-import time
 from threading import Thread
 import socket
 import json
@@ -21,7 +20,7 @@ import json
 #                           Constants / Settings                              #
 ################################################################################
 
-SERVER_IP: str = "127.0.0.1" #192.168.0.138
+SERVER_IP: str = "127.0.0.1"
 ENCRYPTION: str = "UTF-8"
 PORT: int = 8888
 
@@ -103,39 +102,43 @@ class Client(socket.socket):
         Receives messages from the server in packages and saves them
         """
         first = True
-
-        try:
-            while self.running:
-                msg = self.recv(8)
-                if msg == b"":
-                    self._print("SERVER CLOSED CONNECTION")
-                    self.close()
-                    return
+        while self.running:
+            try:
+                bs = self.recv(8)  # receive message length
+            except socket.timeout:
+                continue
+            try:
+                if first:
+                    first = False
+                    self.ID = bs.decode(ENCRYPTION)
+                    self._print(f"GOT ID: {self.ID}")
                 else:
-                    (msg_str,) = struct.unpack('>Q', msg)
-                    print(msg_str)
-                    if first:
-                        first = False
-                        self.ID = msg_str
-                        self._print(f"GOT ID: {self.ID}")
-                    else:
-                        recv = ""
+                    length = int(bs.decode(ENCRYPTION))
 
-                        for index in range(int(msg_str) // self.package_size):
-                            package = self.recv(self.package_size)
-                            recv += package.decode(ENCRYPTION)
-                        last_pack = self.recv(int(msg_str) % self.package_size)
-                        recv += last_pack.decode(ENCRYPTION)
+                    data = b''
+                    no_rec = 0
+                    to_read = 0
+                    while len(data) < length:  # receive message in patches so size doesn't matter
+                        o_to_read = to_read
+                        to_read = length - len(data)
+                        data += self.recv(
+                            4096 if to_read > 4096 else to_read
+                        )
 
-                        try:
-                            msg_dic = json.loads(recv)
-                            self.__received_msg.append(msg_dic)
-                        except json.decoder.JSONDecodeError:
-                            pass
+                        if to_read == o_to_read:  # check if new packages were received
+                            no_rec += 1
+                        else:
+                            no_rec = 0
 
-        except ConnectionAbortedError:
-            self._print("CONNECTION ABORTED")
-            return
+                        if no_rec >= 100:  # if for 100 loops no packages were received, raise connection loss
+                            raise socket.error('Failed receiving data - connection loss ( received: '
+                                               f'{len(data)} / {length} )')
+                    msg_str = data.decode(ENCRYPTION)
+                    msg_dic = json.loads(msg_str)
+                    self.__received_msg.append(msg_dic)
+            except (ConnectionResetError, struct.error, socket.timeout):
+                continue
+
 
     def end(self) -> None:
         """
@@ -155,4 +158,3 @@ if __name__ == "__main__":
     while True:
         cmd_input = input(">>> ")
         exec(f"cl.{cmd_input}")
-
