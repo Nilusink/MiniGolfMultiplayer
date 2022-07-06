@@ -67,6 +67,12 @@ class UserShoot: # noqa
     msg: dict
 
 
+@dataclass(frozen=True)
+class UserRespawn:
+    user_id: str
+    time: float
+
+
 ################################################################################
 #                                   Server                                     #
 ################################################################################
@@ -174,10 +180,21 @@ class Server(socket.socket):
                 msg_str = msg.decode(ENCRYPTION)
                 msg_dic = loads(msg_str)
 
-                event = UserShoot(user_id=user_id, time=time(), msg=msg_dic)
+                match msg_dic["type"]:
+                    case "shoot":
+                        event = UserShoot(user_id=user_id, time=time(), msg=msg_dic["content"])
+
+                    case "respawn":
+                        print("adding respawn")
+                        event = UserRespawn(user_id=user_id, time=time())
+
+                    case _:
+                        raise NotImplementedError(f"Unknown event type: {msg_dic['type']}")
+
                 for single_event in self.__events:
                     if type(single_event) == UserShoot and single_event.user_id == user_id:
                         raise MultipleDataReceived("Client already sent data")
+
                 self.__events.append(event)
                 self._print(f"{user_id} SENT: {msg_dic}")
 
@@ -227,5 +244,5 @@ class Server(socket.socket):
 if __name__ == "__main__":
     s = Server(debug_mode=True)
     while True:
-        s.send_all({"balls": [{"id": "user_000", "x": 0.025, "y": 0.5, "vel": [0, 0], "tries": 0}, {"id": "user_001", "x": 0.025, "y": 0.5, "vel": [0, 0], "tries": 0}]})
-
+        s.send_all({1: 2, 2: "HELLO"})
+        sleep(1)

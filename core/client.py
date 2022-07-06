@@ -85,14 +85,31 @@ class Client(socket.socket):
         except IndexError:
             return None
 
-    def send_data(self, msg: dict) -> None:
+    def shoot(self, msg: dict) -> None:
         """
         Send a message to the server
 
         :param msg: Dictonary to send
         """
+        mes = {
+            "type": "shoot",
+            "content": msg
+        }
 
-        msg_str = json.dumps(msg)
+        msg_str = json.dumps(mes)
+        msg_byte = msg_str.encode(ENCRYPTION)
+
+        self.send(msg_byte)
+
+    def respawn(self) -> None:
+        """
+        Send a respawn event to the server
+        """
+        mes = {
+            "type": "respawn"
+        }
+
+        msg_str = json.dumps(mes)
         msg_byte = msg_str.encode(ENCRYPTION)
 
         self.send(msg_byte)

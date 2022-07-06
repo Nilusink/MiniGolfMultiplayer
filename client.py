@@ -10,6 +10,7 @@ Nilusink
 from core.client import Client, Thread
 from traceback import format_exc
 from core.classes import Vec2
+import typing as tp
 import math as m
 import pygame
 import json
@@ -23,6 +24,9 @@ SERVER_PORT: int = 8888
 pygame.init()
 pygame.font.init()
 FONT = pygame.font.SysFont(None, 24)
+HEADING = pygame.font.SysFont(None, 60)
+
+PERM_SHOW: list[tuple[tp.Callable, list, dict]] = []
 
 
 class _Balls(pygame.sprite.Group):
@@ -130,10 +134,28 @@ def main() -> None:
                     Ball((0, 0))
 
                 for j, ball in enumerate(ball_pos["balls"]):
+                    PERM_SHOW.clear()
+
                     current_ball: Ball | pygame.sprite.Sprite = Balls.sprites()[j]
                     if client.ID == ball["id"]:  # check if the currently updated ball is the player
                         current_ball.is_player = True
                         player = current_ball
+
+                        if ball["on_target"]:
+                            fg = (255, 255, 125, 255)
+                            bg = (0, 0, 0, 125)
+                            text = HEADING.render("You won!", False, fg, bg)
+                            PERM_SHOW.append((
+                                top_layer.blit,
+                                [text, [100, 100]],
+                                {},
+                            ))
+                            text = HEADING.render(f"Tries: {ball['tries']}", False, fg, bg)
+                            PERM_SHOW.append((
+                                top_layer.blit,
+                                [text, [100, 150]],
+                                {},
+                            ))
 
                     else:
                         current_ball.is_player = False
@@ -164,6 +186,12 @@ def main() -> None:
 
                 case pygame.MOUSEBUTTONUP:
                     mouse_up = True
+
+                case pygame.KEYDOWN:
+                    match event.key:
+                        case pygame.K_RETURN:
+                            print("respawning")
+                            client.respawn()
 
         mouse_pos = Vec2.from_cartesian(*pygame.mouse.get_pos())
 
@@ -239,16 +267,19 @@ def main() -> None:
                     top_layer.blit(text, text_pos.xy)
 
                     if mouse_up:    # shot
-
-                        client.send_data({
+                        client.shoot({
                             "vector": [delta.x, delta.y]
                         })
 
         Balls.update()
         Balls.draw(top_layer)
 
-        screen.blit(top_layer, (0, 0))
+        # draw PERM_SHOW
+        for func, args, kwargs in PERM_SHOW:
+            print(f"drawing {func.__name__}(*{args}, **{kwargs})")
+            func(*args, **kwargs)
 
+        screen.blit(top_layer, (0, 0))
         pygame.display.flip()
         clock.tick(60)
 

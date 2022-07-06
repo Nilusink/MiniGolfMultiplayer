@@ -29,4 +29,4 @@ class _BaseGame:
 
 
 # initialize game
-BaseGame = _BaseGame((1000, 500))
+BaseGame = _BaseGame((1500, 750))

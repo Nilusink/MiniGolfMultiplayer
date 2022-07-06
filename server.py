@@ -6,9 +6,10 @@ Runs the program, simulates collision and targets
 Author:
 Nilusink
 """
-from core.server import Server, Thread, UserRem, UserAdd, UserShoot
+from core.server import Server, Thread, UserRem, UserAdd, UserShoot, UserRespawn
 from core.basegame import BaseGame
 from core.objects import *
+import time
 import json
 
 
@@ -66,6 +67,13 @@ def main() -> None:
 
                         user.hit(direction)
 
+                    case UserRespawn(user_id=_, time=_):
+                        print("got respawn")
+                        event: UserRespawn
+
+                        user = Balls.get_user(event.user_id)
+                        user.reset()
+
                     case _:
                         raise NotImplementedError(f"unknown event type {type(event)}")
 
@@ -73,24 +81,33 @@ def main() -> None:
         """
         send updated ball positions to clients
         """
-        out: dict[str, list] = {"balls": []}
-        for ball in Balls.sprites().copy():
-            ball: Ball
+        while running:
+            out: dict[str, list] = {"balls": []}
+            for ball in Balls.sprites().copy():
+                ball: Ball
 
-            out["balls"].append({
-                "id": ball.id,
-                "x": ball.position.x / 2,
-                "y": ball.position.y,
-                "vel": ball.velocity.xy,
-                "tries": ball.tries,
-            })
+                out["balls"].append({
+                    "id": ball.id,
+                    "x": ball.position.x / 2,
+                    "y": ball.position.y,
+                    "vel": ball.velocity.xy,
+                    "tries": ball.tries,
+                    "on_target": ball.on_target,
+                })
 
-        server.send_all(out)
+            server.send_all(out)
 
     Thread(target=server_handler).start()
+    Thread(target=send_updates).start()
 
     # pygame loop
+    last_time = time.perf_counter()
+
     while running:
+        this_time = time.perf_counter()
+        time_delta = this_time - last_time
+        last_time = this_time
+
         # clear layers
         BaseGame.screen.fill((0, 0, 0, 0))
         BaseGame.lowest_layer.fill((0, 0, 0, 0))
@@ -99,7 +116,7 @@ def main() -> None:
         BaseGame.top_layer.fill((0, 0, 0, 0))
 
         # update groups
-        Balls.update(1)
+        Balls.update(time_delta)
 
         # draw groups
         Walls.draw(BaseGame.wall_layer)
@@ -109,8 +126,6 @@ def main() -> None:
         # draw to draw
         for function, args in BaseGame.to_draw:
             function(*args)
-
-        Thread(target=send_updates).start()
 
         # draw layers
         BaseGame.screen.blit(BaseGame.lowest_layer, (0, 0))

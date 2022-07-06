@@ -16,7 +16,7 @@ import numpy as np
 import cmath as cm
 
 
-MAX_SPEED: float = .04
+MAX_SPEED: float = 1
 
 
 def _is_valid(x: float, y: float) -> bool:
@@ -277,6 +277,10 @@ class Ball(pg.sprite.Sprite):
         return self._tries
 
     @property
+    def on_target(self) -> bool:
+        return self.__was_target
+
+    @property
     def velocity(self) -> Vec2:
         return self._velocity
 
@@ -341,6 +345,7 @@ class Ball(pg.sprite.Sprite):
         but a ball back to its original position (without any velocity
         """
         self.position = self._origin.copy()
+        self.__was_target = False
         self._velocity = Vec2()
 
 
