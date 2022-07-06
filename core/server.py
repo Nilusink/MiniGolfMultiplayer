@@ -147,7 +147,7 @@ class Server(socket.socket):
 
         for client in self.__clients.copy():
             try:
-                self.__clients[client].send(str(len(msg_byte)).encode(ENCRYPTION))
+                self.__clients[client].send("{:010d}".format(len(msg_byte)).encode(ENCRYPTION))
                 self.__clients[client].send(msg_byte)
 
             except OSError:

@@ -112,6 +112,7 @@ class Client(socket.socket):
                     return
                 else:
                     msg_str = msg.decode(ENCRYPTION)
+                    print(msg_str)
                     if first:
                         first = False
                         self.ID = msg_str
