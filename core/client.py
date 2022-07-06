@@ -11,7 +11,8 @@ Date:   29.06.2022
 ################################################################################
 #                                Import Modules                                #
 ################################################################################
-
+import struct
+import time
 from threading import Thread
 import socket
 import json
@@ -20,7 +21,7 @@ import json
 #                           Constants / Settings                              #
 ################################################################################
 
-SERVER_IP: str = "127.0.0.1"
+SERVER_IP: str = "127.0.0.1" #192.168.0.138
 ENCRYPTION: str = "UTF-8"
 PORT: int = 8888
 
@@ -105,13 +106,13 @@ class Client(socket.socket):
 
         try:
             while self.running:
-                msg = self.recv(10)
+                msg = self.recv(8)
                 if msg == b"":
                     self._print("SERVER CLOSED CONNECTION")
                     self.close()
                     return
                 else:
-                    msg_str = msg.decode(ENCRYPTION)
+                    (msg_str,) = struct.unpack('>Q', msg)
                     print(msg_str)
                     if first:
                         first = False

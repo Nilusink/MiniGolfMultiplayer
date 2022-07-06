@@ -10,7 +10,7 @@ Date:   29.06.2022
 ################################################################################
 #                                Import Modules                                #
 ################################################################################
-
+import struct
 from dataclasses import dataclass
 from json import dumps, loads
 from threading import Thread
@@ -144,11 +144,12 @@ class Server(socket.socket):
         """
         msg_str = dumps(msg)
         msg_byte = msg_str.encode(ENCRYPTION)
+        length = struct.pack('>Q', len(msg_byte))
 
         for client in self.__clients.copy():
             try:
                 self.__clients[client].settimeout(None)
-                self.__clients[client].sendall("{:08d}".format(len(msg_byte)).encode(ENCRYPTION))
+                self.__clients[client].sendall(length)
                 self.__clients[client].sendall(msg_byte)
                 self.__clients[client].settimeout(.1)
 
