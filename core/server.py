@@ -147,8 +147,10 @@ class Server(socket.socket):
 
         for client in self.__clients.copy():
             try:
-                self.__clients[client].send("{:010d}".format(len(msg_byte)).encode(ENCRYPTION))
-                self.__clients[client].send(msg_byte)
+                self.__clients[client].settimeout(None)
+                self.__clients[client].sendall("{:08d}".format(len(msg_byte)).encode(ENCRYPTION))
+                self.__clients[client].sendall(msg_byte)
+                self.__clients[client].settimeout(.1)
 
             except OSError:
                 continue
@@ -226,5 +228,5 @@ class Server(socket.socket):
 if __name__ == "__main__":
     s = Server(debug_mode=True)
     while True:
-        s.send_all({1: 2, 2: "HELLO"})
-        sleep(1)
+        s.send_all({"balls": [{"id": "user_000", "x": 0.025, "y": 0.5, "vel": [0, 0], "tries": 0}, {"id": "user_001", "x": 0.025, "y": 0.5, "vel": [0, 0], "tries": 0}]})
+
