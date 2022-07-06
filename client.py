@@ -14,19 +14,14 @@ import math as m
 import pygame
 import json
 
+
+# Connection settings
+SERVER_IP: str = "127.0.0.1"
+SERVER_PORT: int = 8888
+
+
 pygame.init()
 pygame.font.init()
-black = (0, 0, 0)
-white = (255, 255, 255)
-screen_info = pygame.display.Info()
-original_window_size = (screen_info.current_w, screen_info.current_h)
-w_w = original_window_size[0]
-w_h = original_window_size[1]
-screen = pygame.display.set_mode(original_window_size, pygame.FULLSCREEN)
-pygame.display.set_caption("Minigolf")
-aktiv = True
-clock = pygame.time.Clock()
-
 FONT = pygame.font.SysFont(None, 24)
 
 
@@ -34,6 +29,7 @@ class _Balls(pygame.sprite.Group):
     ...
 
 
+# create ONLY instance
 Balls = _Balls()
 
 
@@ -58,6 +54,7 @@ class Ball(pygame.sprite.Sprite):
 
     @property
     def screen_position(self) -> tuple[float, float]:
+        screen_info = pygame.display.Info()
         window_size = (screen_info.current_w, screen_info.current_h)
         x, y = self.pos_x_y
 
@@ -102,148 +99,163 @@ with open('Maps/Map1.json') as f:
     data = json.load(f)
 
 # create client
-client = Client(server_ip="127.0.0.1", port=8888, debug_mode=True)
+client = Client(server_ip=SERVER_IP, port=SERVER_PORT, debug_mode=True)
 
 
-def update_handler() -> None:
-    """
-    handle server updates
-    """
-    global player
+def main() -> None:
+    white = (255, 255, 255)
+    screen_info = pygame.display.Info()
+    original_window_size = (screen_info.current_w, screen_info.current_h)
+    screen = pygame.display.set_mode(original_window_size, pygame.FULLSCREEN)
+    pygame.display.set_caption("Mini-Golf")
+    active = True
+    clock = pygame.time.Clock()
 
-    while aktiv:
-        try:
-            ball_pos = client.received_msg
-            if ball_pos is None:
-                continue
+    # create ball surface
+    top_layer = pygame.Surface(original_window_size, pygame.SRCALPHA, 32)
 
-            while len(Balls.sprites()) < len(ball_pos["balls"]):
-                Ball((0, 0))
+    def update_handler() -> None:
+        """
+        handle server updates
+        """
+        nonlocal player
 
-            for i, ball in enumerate(ball_pos["balls"]):
-                current_ball: Ball | pygame.sprite.Sprite = Balls.sprites()[i]
-                if client.ID == ball["id"]:  # check if the currently updated ball is the player
-                    current_ball.is_player = True
-                    player = current_ball
+        while active:
+            try:
+                ball_pos = client.received_msg
+                if ball_pos is None:
+                    continue
+
+                while len(Balls.sprites()) < len(ball_pos["balls"]):
+                    Ball((0, 0))
+
+                for j, ball in enumerate(ball_pos["balls"]):
+                    current_ball: Ball | pygame.sprite.Sprite = Balls.sprites()[j]
+                    if client.ID == ball["id"]:  # check if the currently updated ball is the player
+                        current_ball.is_player = True
+                        player = current_ball
+
+                    else:
+                        current_ball.is_player = False
+
+                    x = ball["x"]
+                    y = ball["y"]
+
+                    current_ball.update_pos(x, y)
+                    current_ball.velocity = Vec2.from_cartesian(*ball["vel"])
+                    current_ball.tries = ball["tries"]
+
+            except (Exception,):
+                print(f"exception in thread update-handle:\n{format_exc()}\n")
+
+    Thread(target=update_handler).start()
+
+    player: Ball = ...
+    while active:
+        window_size = (screen_info.current_w, screen_info.current_h)
+        w_w = window_size[0]
+        w_h = window_size[1]
+
+        mouse_up = False
+        for event in pygame.event.get():
+            match event.type:
+                case pygame.QUIT:
+                    active = False
+
+                case pygame.MOUSEBUTTONUP:
+                    mouse_up = True
+
+        mouse_pos = Vec2.from_cartesian(*pygame.mouse.get_pos())
+
+        # reset layers
+        screen.fill((0, 0, 0, 0))
+        top_layer.fill((0, 0, 0, 0))
+
+        total = data["total"]
+        # draw walls and targets
+        for i in range(1, total + 1):
+            i = str(i)
+            p1_x = data[i]["p1_x"]
+            p1_y = data[i]["p1_y"]
+            p2_x = data[i]["p2_x"]
+            p2_y = data[i]["p2_y"]
+            # print(p1_y*w_h)
+            # print(p2_x*w_w)
+            pygame.draw.line(screen, white, (p1_x * w_w, p1_y * w_h), (p2_x * w_w, p2_y * w_h))
+
+        target_pos = data["target"]
+
+        pygame.draw.circle(screen, (255, 255, 0, 255), (target_pos[0] * w_w, target_pos[1] * w_h), 10)
+
+        # draw player "aim"
+        if player is not ...:
+            if player.velocity.length == 0:  # only draw when standing still
+                max_rad = 150
+                min_rad = 25
+                pos = player.screen_center
+                pos = Vec2.from_cartesian(*pos)
+                delta = mouse_pos - pos
+
+                off = delta.copy()
+                orig_delta = delta.copy()
+                delta.length -= min_rad
+
+                delta.x /= max_rad - min_rad
+                delta.y /= max_rad - min_rad
+
+                if min_rad < orig_delta.length < max_rad:
+                    # green: minimum
+                    # orange-ish: center
+                    # red: maximum
+                    val = m.sin((m.pi / 2) * delta.length)
+                    r_val = 255 * val
+                    g_val = 255 * m.sin((m.pi / 2) * (1 - delta.length))
+                    a_val = 60 + 10 * abs(m.sin((m.pi / 2) * (delta.length - .5)))
+
+                    pygame.draw.circle(top_layer, (r_val, g_val, 0, a_val), pos.xy, max_rad)  # lighter circle (aiming)
 
                 else:
-                    current_ball.is_player = False
+                    pygame.draw.circle(top_layer, (255, 0, 0, 40), pos.xy, max_rad)     # lighter circle (default)
 
-                x = ball["x"]
-                y = ball["y"]
+                pygame.draw.circle(top_layer, (0, 0, 0, 255), pos.xy, min_rad)         # transparent circle
+                pygame.draw.circle(top_layer, (255, 0, 0, 255), pos.xy, max_rad, 1)    # outer circle
+                pygame.draw.circle(top_layer, (255, 0, 0, 255), pos.xy, min_rad, 1)    # inner circle
 
-                current_ball.update_pos(x, y)
-                current_ball.velocity = Vec2.from_cartesian(*ball["vel"])
-                current_ball.tries = ball["tries"]
+                if min_rad < orig_delta.length < max_rad:
+                    off.length = min_rad
+                    p0 = pos + off
+                    off.length = max_rad
+                    p1 = pos + off
 
-        except (Exception,):
-            print(f"exception in thread update-handle:\n{format_exc()}\n")
+                    pygame.draw.line(top_layer, (255, 255, 255, 255), p0.xy, p1.xy, 1)
+                    pygame.draw.circle(top_layer, (255, 255, 255, 125), pos.xy, orig_delta.length, 1)  # mouse circle
+                    pygame.draw.circle(top_layer, (255, 255, 255, 255), mouse_pos.xy, 5)    # mouse indicator
+
+                    perc = round(delta.length * 100)
+
+                    text_pos = mouse_pos + Vec2.from_cartesian(-40, -20)
+
+                    text = FONT.render(f"{perc}%", True, (255, 255, 255, 255))
+                    top_layer.blit(text, text_pos.xy)
+
+                    if mouse_up:    # shot
+
+                        client.send_data({
+                            "vector": [delta.x, delta.y]
+                        })
+
+        Balls.update()
+        Balls.draw(top_layer)
+
+        screen.blit(top_layer, (0, 0))
+
+        pygame.display.flip()
+        clock.tick(60)
+
+    client.end()
+    pygame.quit()
+    quit()
 
 
-Thread(target=update_handler).start()
-
-# create ball surface
-top_layer = pygame.Surface(original_window_size, pygame.SRCALPHA, 32)
-
-player: Ball = ...
-while aktiv:
-    mouse_up = False
-    for event in pygame.event.get():
-        match event.type:
-            case pygame.QUIT:
-                aktiv = False
-
-            case pygame.MOUSEBUTTONUP:
-                mouse_up = True
-
-    mouse_pos = Vec2.from_cartesian(*pygame.mouse.get_pos())
-
-    # reset layers
-    screen.fill((0, 0, 0, 0))
-    top_layer.fill((0, 0, 0, 0))
-
-    total = data["total"]
-    # draw walls and targets
-    for i in range(1, total + 1):
-        i = str(i)
-        p1_x = data[i]["p1_x"]
-        p1_y = data[i]["p1_y"]
-        p2_x = data[i]["p2_x"]
-        p2_y = data[i]["p2_y"]
-        # print(p1_y*w_h)
-        # print(p2_x*w_w)
-        pygame.draw.line(screen, white, (p1_x * w_w, p1_y * w_h), (p2_x * w_w, p2_y * w_h))
-
-    target_pos = data["target"]
-
-    pygame.draw.circle(screen, (255, 255, 0, 255), (target_pos[0] * w_w, target_pos[1] * w_h), 10)
-
-    # draw player "aim"
-    if player is not ...:
-        if player.velocity.length == 0:  # only draw when standing still
-            max_rad = 150
-            min_rad = 25
-            pos = player.screen_center
-            pos = Vec2.from_cartesian(*pos)
-            delta = mouse_pos - pos
-
-            off = delta.copy()
-            orig_delta = delta.copy()
-            delta.length -= min_rad
-
-            delta.x /= max_rad - min_rad
-            delta.y /= max_rad - min_rad
-
-            if min_rad < orig_delta.length < max_rad:
-                # green: minimum
-                # orange-ish: center
-                # red: maximum
-                val = m.sin((m.pi / 2) * delta.length)
-                r_val = 255 * val
-                g_val = 255 * m.sin((m.pi / 2) * (1 - delta.length))
-                a_val = 60 + 10 * abs(m.sin((m.pi / 2) * (delta.length - .5)))
-
-                pygame.draw.circle(top_layer, (r_val, g_val, 0, a_val), pos.xy, max_rad)    # lighter circle (aiming)
-
-            else:
-                pygame.draw.circle(top_layer, (255, 0, 0, 40), pos.xy, max_rad)     # lighter circle (default)
-
-            pygame.draw.circle(top_layer, (0, 0, 0, 255), pos.xy, min_rad)         # transparent circle
-            pygame.draw.circle(top_layer, (255, 0, 0, 255), pos.xy, max_rad, 1)    # outer circle
-            pygame.draw.circle(top_layer, (255, 0, 0, 255), pos.xy, min_rad, 1)    # inner circle
-
-            if min_rad < orig_delta.length < max_rad:
-                off.length = min_rad
-                p0 = pos + off
-                off.length = max_rad
-                p1 = pos + off
-
-                pygame.draw.line(top_layer, (255, 255, 255, 255), p0.xy, p1.xy, 1)
-                pygame.draw.circle(top_layer, (255, 255, 255, 125), pos.xy, orig_delta.length, 1)  # mouse circle
-                pygame.draw.circle(top_layer, (255, 255, 255, 255), mouse_pos.xy, 5)    # mouse indicator
-
-                perc = round(delta.length * 100)
-
-                text_pos = mouse_pos + Vec2.from_cartesian(-40, -20)
-
-                text = FONT.render(f"{perc}%", True, (255, 255, 255, 255))
-                top_layer.blit(text, text_pos.xy)
-
-                if mouse_up:    # shot
-
-                    client.send_data({
-                        "vector": [delta.x, delta.y]
-                    })
-
-    Balls.update()
-    Balls.draw(top_layer)
-
-    screen.blit(top_layer, (0, 0))
-
-    pygame.display.flip()
-    clock.tick(60)
-
-client.end()
-pygame.quit()
-quit()
-# "": {"p1_x": 0., "p1_y": 0., "p2_x": 0., "p2_y": 0.}
+if __name__ == '__main__':
+    main()

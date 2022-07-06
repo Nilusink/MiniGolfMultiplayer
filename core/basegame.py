@@ -19,7 +19,7 @@ class _BaseGame:
         self.times = []
         self.times_values = []
         self.times_Values2 = []
-        self.screen = pg.display.set_mode(window_size, pg.FULLSCREEN)
+        self.screen = pg.display.set_mode(window_size, pg.RESIZABLE)
         self.lowest_layer = pg.Surface(window_size, pg.SRCALPHA, 32)
         self.wall_layer = pg.Surface(window_size, pg.SRCALPHA, 32)
         self.middle_layer = pg.Surface(window_size, pg.SRCALPHA, 32)
@@ -29,4 +29,4 @@ class _BaseGame:
 
 
 # initialize game
-BaseGame = _BaseGame()
+BaseGame = _BaseGame((1000, 500))
