@@ -104,41 +104,20 @@ class Client(socket.socket):
         first = True
         while self.running:
             try:
-                bs = self.recv(8)  # receive message length
+                msg_byte = self.recv(1024)  # receive message length
             except socket.timeout:
                 continue
             try:
+                msg_str = msg_byte.decode(ENCRYPTION)
                 if first:
                     first = False
-                    self.ID = bs.decode(ENCRYPTION)
+                    self.ID = msg_str
                     self._print(f"GOT ID: {self.ID}")
                 else:
-                    length = int(bs.decode(ENCRYPTION))
-
-                    data = b''
-                    no_rec = 0
-                    to_read = 0
-                    while len(data) < length:  # receive message in patches so size doesn't matter
-                        o_to_read = to_read
-                        to_read = length - len(data)
-                        data += self.recv(
-                            4096 if to_read > 4096 else to_read
-                        )
-
-                        if to_read == o_to_read:  # check if new packages were received
-                            no_rec += 1
-                        else:
-                            no_rec = 0
-
-                        if no_rec >= 100:  # if for 100 loops no packages were received, raise connection loss
-                            raise socket.error('Failed receiving data - connection loss ( received: '
-                                               f'{len(data)} / {length} )')
-                    msg_str = data.decode(ENCRYPTION)
                     msg_dic = json.loads(msg_str)
                     self.__received_msg.append(msg_dic)
-            except (ConnectionResetError, struct.error, socket.timeout):
+            except (ConnectionResetError, struct.error, socket.timeout, json.decoder.JSONDecodeError):
                 continue
-
 
     def end(self) -> None:
         """

@@ -148,7 +148,6 @@ class Server(socket.socket):
         for client in self.__clients.copy():
             try:
                 self.__clients[client].settimeout(None)
-                self.__clients[client].sendall("{:08d}".format(len(msg_byte)).encode(ENCRYPTION))
                 self.__clients[client].sendall(msg_byte)
                 self.__clients[client].settimeout(.1)
 
