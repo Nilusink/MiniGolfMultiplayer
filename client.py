@@ -20,7 +20,7 @@ import json
 
 
 # Connection settings
-SERVER_IP: str = "127.0.0.1"
+SERVER_IP: str = "192.168.0.138"
 SERVER_PORT: int = 8888
 
 
@@ -193,6 +193,8 @@ def main() -> None:
 
                 case pygame.KEYDOWN:
                     match event.key:
+                        case pygame.K_ESCAPE:
+                            active = False
                         case pygame.K_RETURN:
                             print("respawning")
                             client.respawn()

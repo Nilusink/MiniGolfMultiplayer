@@ -11,8 +11,7 @@ Date:   29.06.2022
 ################################################################################
 #                                Import Modules                                #
 ################################################################################
-from traceback import print_exc
-import struct
+
 from threading import Thread
 import socket
 import json
@@ -21,7 +20,7 @@ import json
 #                           Constants / Settings                              #
 ################################################################################
 
-SERVER_IP: str = "192.168.0.138"  # 192.168.0.138
+SERVER_IP: str = "192.168.0.138"
 ENCRYPTION: str = "UTF-8"
 PORT: int = 8888
 
@@ -32,13 +31,11 @@ PORT: int = 8888
 
 class Client(socket.socket):
     __received_msg: list[dict]
-    package_size: int
+    __running: bool
     debug_mode: bool
-    running: bool
     ID: str
 
-    def __init__(self, server_ip: str, port: int, debug_mode: bool | None = False,
-                 package_size: int | None = 1024) -> None:
+    def __init__(self, server_ip: str, port: int, debug_mode: bool | None = False) -> None:
         """
         Client for communicating between game calculating and game GUI
         """
@@ -54,23 +51,12 @@ class Client(socket.socket):
         self._print()
         self._print(f"<<<<<<<<<<<<<<<<<<<<>>>>>>>>>>>>>>>>>>>>")
 
-        self.package_size = package_size
         self.__received_msg = []
-        self.running = True
+        self.__running = True
         self.ID = ""
 
         self.connect((server_ip, port))
         Thread(target=self.__receive, args=()).start()
-
-    def _print(self, *msg: any) -> None:
-        """
-        Only print if debug mode is on
-
-        :param msg: Messages to print
-        """
-
-        if self.debug_mode:
-            print("CLIENT:", *msg)
 
     @property
     def received_msg(self) -> dict | None:
@@ -78,13 +64,51 @@ class Client(socket.socket):
         Returns the oldest received message and deletes it's caching
         :return: Dictonary of the message or none if there is no new messages
         """
-
         try:
             rec_data = self.__received_msg[0]
             del self.__received_msg[0]
             return rec_data
+
         except IndexError:
             return None
+
+    def __receive(self) -> None:
+        """
+        Receives messages from the server in packages and saves them
+        """
+        first: bool = True
+        recv: bool = False
+        data = bytearray()
+        while self.__running:
+            try:
+                msg_byte = self.recv(1)
+                if not recv and msg_byte == b'@':
+                    recv = True
+                elif recv and msg_byte != b"#":
+                    data.extend(msg_byte)
+                elif recv:
+                    msg_str = data.decode(ENCRYPTION)
+                    recv = False
+                    data = bytearray()
+                    try:
+                        if first:
+                            first = False
+                            self.ID = msg_str
+                            self._print(f"GOT ID: {self.ID}")
+                        else:
+                            msg_dic = json.loads(msg_str)
+                            self.__received_msg.append(msg_dic)
+
+                    except (ConnectionResetError, socket.timeout, json.decoder.JSONDecodeError):
+                        self._print("FAIL")
+                        continue
+
+            except socket.timeout:
+                continue
+
+            except ConnectionAbortedError:
+                self._print("CONNECTION CLOSED")
+                return
 
     def shoot(self, msg: dict) -> None:
         """
@@ -92,7 +116,7 @@ class Client(socket.socket):
 
         :param msg: Dictonary to send
         """
-        mes = {
+        mes: dict = {
             "type": "shoot",
             "content": msg
         }
@@ -106,7 +130,7 @@ class Client(socket.socket):
         """
         Send a respawn event to the server
         """
-        mes = {
+        mes: dict = {
             "type": "respawn"
         }
 
@@ -115,48 +139,20 @@ class Client(socket.socket):
 
         self.send(msg_byte)
 
-    def __receive(self) -> None:
+    def _print(self, *msg: any) -> None:
         """
-        Receives messages from the server in packages and saves them
+        Only print if debug mode is on
+
+        :param msg: Messages to print
         """
-
-        first: bool = True
-        recv: bool = False
-        data = bytearray()
-        while self.running:
-            try:
-                msg_byte = self.recv(1)  # receive message length
-                if not recv and msg_byte == b'@':
-                    recv = True
-                elif recv and msg_byte != b"#":
-                    data.extend(msg_byte)
-                    # print("EXTEND", msg_byte.decode(ENCRYPTION))
-                elif recv:
-                    msg_str = data.decode(ENCRYPTION)
-                    recv = False
-                    data = bytearray()
-                    try:
-                        if first:
-                            first = False
-                            self.ID = msg_str
-                            self._print(f"GOT ID: {self.ID}")
-                        else:
-                            msg_dic = json.loads(msg_str)
-                            self._print("GOT DATA: ", msg_dic)
-                            self.__received_msg.append(msg_dic)
-                    except (ConnectionResetError, struct.error, socket.timeout, json.decoder.JSONDecodeError) as error:
-                        print("FAIL")
-                        continue
-
-            except socket.timeout:
-                continue
+        if self.debug_mode:
+            print("CLIENT:", *msg)
 
     def end(self) -> None:
         """
         End the Communication-Thread and close the connection
         """
-
-        self.running = False
+        self.__running = False
         self.close()
 
 

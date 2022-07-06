@@ -109,15 +109,6 @@ class Server(socket.socket):
 
         Thread(target=self.__new_clients, args=()).start()
 
-    def _print(self, *msg: any) -> None:
-        """
-        Only print if debug mode is on
-
-        :param msg: Messages to print
-        """
-        if self.debug_mode:
-            print("SERVER:", *msg)
-
     @property
     def events(self) -> list[UserAdd, UserRem, UserShoot]:
         """
@@ -232,6 +223,15 @@ class Server(socket.socket):
 
             self.__id_counter += 1
 
+    def _print(self, *msg: any) -> None:
+        """
+        Only print if debug mode is on
+
+        :param msg: Messages to print
+        """
+        if self.debug_mode:
+            print("SERVER:", *msg)
+
     def end(self) -> None:
         """
         Close all connections to the clients/users and end the new_clients-Thread
@@ -241,7 +241,4 @@ class Server(socket.socket):
 
 
 if __name__ == "__main__":
-    s = Server(debug_mode=True)
-    while True:
-        s.send_all({1: 2, 2: "HELLO"})
-        sleep(1)
+    Server(debug_mode=True)
