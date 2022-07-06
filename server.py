@@ -51,7 +51,7 @@ def main() -> None:
                 match event:
                     case UserAdd(user_id=_, time=_):
                         event: UserAdd
-                        Ball(Vec2.from_cartesian(.05, .5), user_id=event.user_id)
+                        Ball(Vec2.from_cartesian(*config["spawn_pos"]), user_id=event.user_id)
 
                     case UserRem(user_id=_, time=_):
                         event: UserRem
@@ -62,7 +62,6 @@ def main() -> None:
                         user = Balls.get_user(event.user_id)
                         direction = Vec2.from_cartesian(*event.msg["vector"])
 
-                        direction.length /= 2**0.5
                         direction.length *= MAX_SPEED
 
                         user.hit(direction)
@@ -82,7 +81,8 @@ def main() -> None:
                 "id": ball.id,
                 "x": ball.position.x / 2,
                 "y": ball.position.y,
-                "vel": ball.velocity.xy
+                "vel": ball.velocity.xy,
+                "tries": ball.tries,
             })
 
         server.send_all(out)
