@@ -272,6 +272,10 @@ class Ball(pg.sprite.Sprite):
         """
         return self._tries
 
+    @property
+    def velocity(self) -> Vec2:
+        return self._velocity
+
     def update_rect(self) -> None:
         x = (self.position.x - self.size / 2)
         y = (self.position.y - self.size / 2)

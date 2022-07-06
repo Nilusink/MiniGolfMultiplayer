@@ -13,6 +13,7 @@ import json
 
 
 running: bool = True
+max_speed: float = .02
 
 
 def main() -> None:
@@ -57,6 +58,11 @@ def main() -> None:
                         user = Balls.get_user(event.user_id)
                         direction = Vec2.from_cartesian(*event.msg["vector"])
 
+                        direction.length /= 2**0.5
+                        direction.length *= max_speed
+
+                        print(f"hitting with {direction.xy}")
+
                         user.hit(direction)
 
                     case _:
@@ -72,8 +78,10 @@ def main() -> None:
             ball: Ball
 
             out["balls"].append({
+                "id": ball.id,
                 "x": ball.position.x / 2,
                 "y": ball.position.y,
+                "vel": ball.velocity.xy
             })
 
         server.send_all(out)

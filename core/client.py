@@ -108,9 +108,14 @@ class Client(socket.socket):
                     first = False
                     self.ID = msg_str
                     self._print(f"GOT ID: {self.ID}")
+
                 else:
-                    msg_dic = json.loads(msg_str)
-                    self.__received_msg.append(msg_dic)
+                    try:
+                        msg_dic = json.loads(msg_str)
+                        self.__received_msg.append(msg_dic)
+
+                    except json.JSONDecodeError:
+                        continue
 
 
 if __name__ == "__main__":
