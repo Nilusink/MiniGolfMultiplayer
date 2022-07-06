@@ -20,7 +20,7 @@ import json
 #                           Constancs / Settings                              #
 ################################################################################
 
-SERVER_IP: str = "192.168.56.1"
+SERVER_IP: str = "127.0.0.1"
 ENCRYPTION: str = "UTF-32"
 PORT: int = 8888
 
@@ -32,6 +32,7 @@ PORT: int = 8888
 class Client(socket.socket):
     __received_msg: list[dict]
     debug_mode: bool
+    ID: str
 
     def __init__(self, server_ip: str, port: int, debug_mode: bool | None = False) -> None:
         """
@@ -94,6 +95,7 @@ class Client(socket.socket):
         """
         Receives messages from the server and saves them
         """
+        first = True
 
         while True:
             msg = self.recv(1024)
@@ -102,8 +104,13 @@ class Client(socket.socket):
                 return
             else:
                 msg_str = msg.decode(ENCRYPTION)
-                msg_dic = json.loads(msg_str)
-                self.__received_msg.append(msg_dic)
+                if first:
+                    first = False
+                    self.ID = msg_str
+                    self._print(f"GOT ID: {self.ID}")
+                else:
+                    msg_dic = json.loads(msg_str)
+                    self.__received_msg.append(msg_dic)
 
 
 if __name__ == "__main__":

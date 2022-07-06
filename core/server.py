@@ -47,7 +47,7 @@ class UserAdd:
 
 
 @dataclass(frozen=True)
-class UserRem:
+class UserRem: # noqa
     """
     Event for removed/disconnected users
     """
@@ -56,7 +56,7 @@ class UserRem:
 
 
 @dataclass(frozen=True)
-class UserShoot:
+class UserShoot: # noqa
     """
     Event for user data / shoots
     """
@@ -194,8 +194,11 @@ class Server(socket.socket):
 
         while True:
             cl, add = self.accept()
+
             user_id = "user_{:03d}".format(self.__id_counter)
             self._print("NEW CLIENT: ", user_id, cl, add)
+
+            cl.send(user_id.encode(ENCRYPTION))
 
             self.__events.append(UserAdd(user_id=user_id, time=time()))
             self.__clients[user_id] = cl
