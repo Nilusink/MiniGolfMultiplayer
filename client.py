@@ -6,10 +6,13 @@ The client side program, displays current ball positions
 Authors:
 MOD0912
 Nilusink
+MelonenBuby
 """
+
 from core.client import Client, Thread
 from traceback import format_exc
 from core.classes import Vec2
+from time import sleep
 import typing as tp
 import math as m
 import pygame
@@ -128,6 +131,7 @@ def main() -> None:
             try:
                 ball_pos = client.received_msg
                 if ball_pos is None:
+                    sleep(0.01)
                     continue
 
                 while len(Balls.sprites()) < len(ball_pos["balls"]):

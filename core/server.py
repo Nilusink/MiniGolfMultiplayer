@@ -10,7 +10,6 @@ Date:   29.06.2022
 ################################################################################
 #                                Import Modules                                #
 ################################################################################
-import struct
 from dataclasses import dataclass
 from json import dumps, loads
 from threading import Thread
@@ -148,7 +147,7 @@ class Server(socket.socket):
 
         :param msg: Message to send to all users/clients
         """
-        msg_str = dumps(msg)
+        msg_str = "@"+dumps(msg)+"#"
         msg_byte = msg_str.encode(ENCRYPTION)
 
         for client in self.__clients.copy():
@@ -222,7 +221,7 @@ class Server(socket.socket):
             except OSError:
                 return
 
-            user_id = "user_{:03d}".format(self.__id_counter)
+            user_id = "@user_{:03d}#".format(self.__id_counter)
             self._print("NEW CLIENT: ", user_id, cl, add)
 
             cl.send(user_id.encode(ENCRYPTION))

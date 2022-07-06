@@ -11,6 +11,7 @@ Date:   29.06.2022
 ################################################################################
 #                                Import Modules                                #
 ################################################################################
+from traceback import print_exc
 import struct
 from threading import Thread
 import socket
@@ -20,7 +21,7 @@ import json
 #                           Constants / Settings                              #
 ################################################################################
 
-SERVER_IP: str = "127.0.0.1"
+SERVER_IP: str = "127.0.0.1"  # 192.168.0.138
 ENCRYPTION: str = "UTF-8"
 PORT: int = 8888
 
@@ -118,22 +119,37 @@ class Client(socket.socket):
         """
         Receives messages from the server in packages and saves them
         """
-        first = True
+
+        first: bool = True
+        recv: bool = False
+        data = bytearray()
         while self.running:
             try:
-                msg_byte = self.recv(1024)  # receive message length
+                msg_byte = self.recv(1)  # receive message length
+                if not recv and msg_byte == b'@':
+                    recv = True
+                elif recv and msg_byte != b"#":
+                    data.extend(msg_byte)
+                    # print("EXTEND", msg_byte.decode(ENCRYPTION))
+                elif recv:
+                    msg_str = data.decode(ENCRYPTION)
+                    recv = False
+                    data = bytearray()
+                    try:
+                        if first:
+                            first = False
+                            self.ID = msg_str
+                            self._print(f"GOT ID: {self.ID}")
+                        else:
+                            msg_dic = json.loads(msg_str)
+                            self.__received_msg.append(msg_dic)
+                        print("SUCCESS")
+                    except (ConnectionResetError, struct.error, socket.timeout, json.decoder.JSONDecodeError) as error:
+                        print("LOST", error)
+                        print_exc()
+                        continue
+
             except socket.timeout:
-                continue
-            try:
-                msg_str = msg_byte.decode(ENCRYPTION)
-                if first:
-                    first = False
-                    self.ID = msg_str
-                    self._print(f"GOT ID: {self.ID}")
-                else:
-                    msg_dic = json.loads(msg_str)
-                    self.__received_msg.append(msg_dic)
-            except (ConnectionResetError, struct.error, socket.timeout, json.decoder.JSONDecodeError):
                 continue
 
     def end(self) -> None:
