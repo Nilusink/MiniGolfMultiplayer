@@ -16,7 +16,8 @@ import numpy as np
 import cmath as cm
 
 
-MAX_SPEED: float = 1
+MAX_SPEED: float = 1    # the maximum player speed
+MAX_TIME: float = 4     # the maximum time a ball is on the move
 
 
 def _is_valid(x: float, y: float) -> bool:
@@ -309,7 +310,7 @@ class Ball(pg.sprite.Sprite):
         self.position += self._velocity * delta
 
         if self._velocity.length > 0:
-            self._velocity.length -= MAX_SPEED / 200
+            self._velocity.length -= (MAX_SPEED / MAX_TIME) * delta
 
         else:
             self._velocity.length = 0
@@ -345,8 +346,11 @@ class Ball(pg.sprite.Sprite):
         but a ball back to its original position (without any velocity
         """
         self.position = self._origin.copy()
+        self.update_rect()
+
         self.__was_target = False
         self._velocity = Vec2()
+        print(f"{self.id} reset")
 
 
 class Target(pg.sprite.Sprite):

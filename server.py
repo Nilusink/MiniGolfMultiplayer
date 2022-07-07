@@ -20,7 +20,7 @@ def main() -> None:
     global running
 
     # load map
-    with open("./Maps/Map1.json", "r") as inp:
+    with open("./Maps/auto_save.json", "r") as inp:
         config = json.load(inp)
 
     num_points = config["total"]

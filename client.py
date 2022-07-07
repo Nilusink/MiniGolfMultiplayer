@@ -8,9 +8,9 @@ MOD0912
 Nilusink
 MelonenBuby
 """
-
 from core.client import Client, Thread, NotReceivedJet
 from traceback import format_exc
+from contextlib import suppress
 from core.classes import Vec2
 from time import sleep
 import typing as tp
@@ -104,14 +104,9 @@ class Ball(pygame.sprite.Sprite):
 # create client
 client = Client(server_ip=SERVER_IP, port=SERVER_PORT, debug_mode=True)
 while True:
-    try:
+    with suppress(NotReceivedJet):
         data = client.game_map
-        print("looping")
-
-    except NotReceivedJet:
-        continue
-
-print("got map")
+        break
 
 
 def main() -> None:
