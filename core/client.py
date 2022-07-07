@@ -27,6 +27,14 @@ PORT: int = 8888
 
 
 ################################################################################
+#                                 Exceptions                                   #
+################################################################################
+
+class NotReceivedJet(Exception):
+    ...
+
+
+################################################################################
 #                                   Client                                     #
 ################################################################################
 
@@ -35,7 +43,8 @@ class Client(socket.socket):
     __ping_trigger: int
     debug_mode: bool
     __running: bool
-    ID: str
+    __game_map: dict
+    __ID: str
 
     def __init__(self, server_ip: str, port: int, debug_mode: bool | None = False) -> None:
         """
@@ -56,10 +65,23 @@ class Client(socket.socket):
         self.__received_msg = []
         self.__ping_trigger = 0
         self.__running = True
-        self.ID = ""
+        self.__game_map = {}
+        self.__ID = ""
 
         self.connect((server_ip, port))
         Thread(target=self.__receive, args=()).start()
+
+    @property
+    def game_map(self) -> dict:
+        if self.__game_map != {}:
+            return self.__game_map
+        raise NotReceivedJet("Server haven't sent a map jet or it's just empty")
+
+    @property
+    def ID(self) -> str:
+        if self.__ID != "":
+            return self.__ID
+        raise NotReceivedJet("Server haven't sent a ID or it's just empty")
 
     @property
     def received_msg(self) -> dict | None:
@@ -79,71 +101,74 @@ class Client(socket.socket):
         """
         Receives messages from the server in packages and saves them
         """
-        first: bool = True
         recv: bool = False
         data = bytearray()
+
         while self.__running:
             try:
                 msg_byte = self.recv(1)
                 if not recv and msg_byte == b'@':
                     recv = True
+
                 elif recv and msg_byte != b"#":
                     data.extend(msg_byte)
+
                 elif recv:
                     msg_str = data.decode(ENCRYPTION)
+                    msg = json.loads(msg_str)
                     recv = False
                     data = bytearray()
-                    if msg_str == "PONG":
-                        self.__ping_trigger = 0
-                    else:
-                        try:
-                            if first:
-                                first = False
-                                self.ID = msg_str
-                                self._print(f"GOT ID: {self.ID}")
-                            else:
-                                msg_dic = json.loads(msg_str)
-                                self.__received_msg.append(msg_dic)
 
-                        except (ConnectionResetError, socket.timeout, json.decoder.JSONDecodeError):
-                            self._print("FAIL", msg_str)
-                            continue
+                    msg_content = msg["content"]
+                    match msg["type"]:
+                        case "msg":
+                            self.__received_msg.append(msg_content)
+                        case "ID":
+                            self.__ID = msg_content
+                        case "map":
+                            self.__game_map = msg_content
+                        case "PONG":
+                            self.__ping_trigger = 0
+                        case "_":
+                            raise NotImplementedError("Invalid message received with type={msg['type']}")
 
-            except socket.timeout:
+            except (ConnectionResetError, socket.timeout):
+                continue
+
+            except json.decoder.JSONDecodeError:
+                self._print("Failed receiving message: JSONDecodeError")
                 continue
 
             except ConnectionAbortedError:
-                self._print("CONNECTION CLOSED")
+                self._print("Connection closed")
                 return
 
-    def shoot(self, msg: dict) -> None:
+    def send_msg(self, msg: dict, msg_type: str | None = "shoot") -> None:
         """
         Send a message to the server
 
-        :param msg: Dictonary to send
+        :param msg: Message to send to the server
+        :param msg_type: Type of the message to send (e.g: respawn)
         """
-        mes: dict = {
-            "type": "shoot",
-            "content": msg
-        }
-
-        msg_str = json.dumps(mes)
+        msg_dict = {"type": msg_type, "content": msg}
+        msg_str = json.dumps(msg_dict)
         msg_byte = msg_str.encode(ENCRYPTION)
 
         self.send(msg_byte)
+
+    def shoot(self, msg: dict) -> None:
+        """
+        Send a shoot event to the server or just use send_msg
+
+        :param msg: Dictonary to send
+        """
+        self.send_msg(msg)
 
     def respawn(self) -> None:
         """
-        Send a respawn event to the server
+        Send a respawn event to the server or just use send_msg
         """
-        mes: dict = {
-            "type": "respawn"
-        }
-
-        msg_str = json.dumps(mes)
-        msg_byte = msg_str.encode(ENCRYPTION)
-
-        self.send(msg_byte)
+        self.send_msg({}, "respawn")
 
     def ping(self, timeout: float | None = 1) -> int:
         """
@@ -153,7 +178,7 @@ class Client(socket.socket):
         :return: Ping in milliseconds
         """
 
-        self.send("PING".encode(ENCRYPTION))
+        self.send_msg({}, "PING")
         self.__ping_trigger = 1
         time_start = time()
 
@@ -183,7 +208,6 @@ class Client(socket.socket):
 
 if __name__ == "__main__":
     cl = Client(SERVER_IP, PORT, debug_mode=True)
-    cl.ping(0)
     print("\n>>> Client - CMD - Control <<<")
     print("Commands: ")
     print(" - send_data(msg)    |   Send a message to the server")

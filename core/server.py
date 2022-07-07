@@ -30,7 +30,7 @@ PORT: int = 8888
 #                                 Exceptions                                   #
 ################################################################################
 
-class MultipleDataReceived(Exception):
+class MultipleDataReceivedError(Exception):
     ...
 
 
@@ -85,8 +85,9 @@ class Server(socket.socket):
     __id_counter: int
     debug_mode: bool
     __running: bool
+    game_map: dict
 
-    def __init__(self, debug_mode: bool | None = False) -> None:
+    def __init__(self, game_map: dict | None = None, debug_mode: bool | None = False) -> None:
         """
         Server for communicating between game calculating and game GUI
         """
@@ -109,6 +110,7 @@ class Server(socket.socket):
         self.__clients = {}
         self.__events = []
         self.__id_counter = 0
+        self.game_map = game_map
 
         Thread(target=self.__new_clients, args=()).start()
 
@@ -124,24 +126,34 @@ class Server(socket.socket):
         self.__events = []
         return events
 
-    def send_user(self, user_id: str, msg: dict) -> None:
+    def send_user(self, user_id: str, msg: dict, msg_type: str | None = "msg") -> None:
         """
         Sends messages to a single clients/users
 
         :param user_id: ID of the user/client to send to
         :param msg: Message to send to all users/clients
+        :param msg_type: Type of the message (e.g.: map)
         """
-        msg_str = dumps(msg)
+        msg_dict = {"type": msg_type, "content": dumps(msg)}
+        msg_str = f'@{dumps(msg_dict)}#'
         msg_byte = msg_str.encode(ENCRYPTION)
-        self.__clients[user_id].send(msg_byte)
 
-    def send_all(self, msg: dict) -> None:
+        try:
+            self.__clients[user_id].settimeout(None)
+            self.__clients[user_id].send(msg_byte)
+            self.__clients[user_id].settimeout(.1)
+        except OSError:
+            return
+
+    def send_all(self, msg: list[dict] | dict, msg_type: str | None = "msg") -> None:
         """
         Sends messages to all clients/users
 
         :param msg: Message to send to all users/clients
+        :param msg_type: Type of the message (e.g.: map)
         """
-        msg_str = "@"+dumps(msg)+"#"
+        msg_dict = {"type": msg_type, "content": dumps(msg)}
+        msg_str = f'@{msg_dict}#'
         msg_byte = msg_str.encode(ENCRYPTION)
 
         for client in self.__clients.copy():
@@ -152,6 +164,15 @@ class Server(socket.socket):
 
             except OSError:
                 continue
+
+    def change_map(self, game_map: dict) -> None:
+        """
+        Change the game map
+
+        :param game_map: map dictonary
+        """
+        self.game_map = game_map
+        self.send_all(game_map, "map")
 
     def __client_receive_handler(self, user_id: str, client: socket.socket) -> None:
         """
@@ -171,28 +192,30 @@ class Server(socket.socket):
                     raise ConnectionResetError  # to disconnect the user (event)
 
                 msg_str = msg.decode(ENCRYPTION)
-                if msg_str == "PING":
-                    client.send("@PONG#".encode(ENCRYPTION))
-                else:
-                    msg_dic = loads(msg_str)
+                msg_dic = loads(msg_str)
 
-                    match msg_dic["type"]:
-                        case "shoot":
-                            event = UserShoot(user_id=user_id, time=time(), msg=msg_dic["content"])
+                event = None
 
-                        case "respawn":
-                            print("adding respawn")
-                            event = UserRespawn(user_id=user_id, time=time())
+                match msg_dic["type"]:
+                    case "shoot":
+                        event = UserShoot(user_id=user_id, time=time(), msg=msg_dic["content"])
 
-                        case _:
-                            raise NotImplementedError(f"Unknown event type: {msg_dic['type']}")
+                    case "respawn":
+                        event = UserRespawn(user_id=user_id, time=time())
 
-                    for single_event in self.__events:
-                        if type(single_event) == UserShoot and single_event.user_id == user_id:
-                            raise MultipleDataReceived("Client already sent data")
+                    case "PING":
+                        self.send_user(user_id, {}, "PONG")
 
+                    case _:
+                        raise NotImplementedError(f"Unknown event type: {msg_dic['type']}")
+
+                for single_event in self.__events:
+                    if type(single_event) == UserShoot and single_event.user_id == user_id:
+                        raise MultipleDataReceivedError("Client already sent data")
+
+                if event:
                     self.__events.append(event)
-                    self._print(f"{user_id} SENT: {msg_dic}")
+                self._print(f"{user_id} SENT: {msg_dic}")
 
             except ConnectionResetError:
                 self._print(f"USER DISCONNECTED: {user_id}")
@@ -219,12 +242,14 @@ class Server(socket.socket):
                 return
 
             user_id = "user_{:03d}".format(self.__id_counter)
+            self.__clients[user_id] = cl
             self._print("NEW CLIENT: ", user_id, cl, add)
 
-            cl.send(("@"+user_id+"#").encode(ENCRYPTION))
+            self.send_user(user_id, {"ID": user_id}, "ID")
+            if self.game_map:
+                self.send_user(user_id, {"map": self.game_map}, "map")
 
             self.__events.append(UserAdd(user_id=user_id, time=time()))
-            self.__clients[user_id] = cl
             Thread(target=self.__client_receive_handler, args=(user_id, cl,)).start()
 
             self.__id_counter += 1
