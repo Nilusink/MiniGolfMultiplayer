@@ -10,13 +10,14 @@ Date:   29.06.2022
 ################################################################################
 #                                Import Modules                                #
 ################################################################################
+
+from core.debug import all_methods, debug
 from dataclasses import dataclass
-from json import dumps, loads
 from threading import Thread
 from typing import Union
 from time import time
 import socket
-
+import json
 
 ################################################################################
 #                           Constants / Settings                              #
@@ -79,17 +80,21 @@ class UserRespawn:
 #                                   Server                                     #
 ################################################################################
 
+@all_methods(debug)
 class Server(socket.socket):
     __clients: dict[str, socket.socket]
     __events: list[Union[UserAdd, UserRem, UserShoot, UserRespawn]]
     __id_counter: int
-    debug_mode: bool
+    debug_mode: int
     __running: bool
     game_map: dict
 
-    def __init__(self, game_map: dict | None = None, debug_mode: bool | None = False) -> None:
+    def __init__(self, game_map: dict | None = None, debug_mode: int | None = 0) -> None:
         """
         Server for communicating between game calculating and game GUI
+
+        :param game_map: Map of the game
+        :param debug_mode: 0 - NoDebug, 1 - OnlyImportantInformations, 2 - LightDebug, 3 - FullDebug
         """
         super().__init__(socket.AF_INET, socket.SOCK_STREAM)
         self.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -135,7 +140,7 @@ class Server(socket.socket):
         :param msg_type: Type of the message (e.g.: map)
         """
         msg_dict = {"type": msg_type, "content": msg}
-        msg_str = f'@{dumps(msg_dict)}#'
+        msg_str = f'@{json.dumps(msg_dict)}#'
         msg_byte = msg_str.encode(ENCRYPTION)
 
         try:
@@ -153,7 +158,7 @@ class Server(socket.socket):
         :param msg_type: Type of the message (e.g.: map)
         """
         msg_dict = {"type": msg_type, "content": msg}
-        msg_str = f'@{dumps(msg_dict)}#'
+        msg_str = f'@{json.dumps(msg_dict)}#'
         msg_byte = msg_str.encode(ENCRYPTION)
         for client in self.__clients.copy():
             try:
@@ -191,22 +196,22 @@ class Server(socket.socket):
                     raise ConnectionResetError  # to disconnect the user (event)
 
                 msg_str = msg.decode(ENCRYPTION)
-                msg_dic = loads(msg_str)
+                msg = json.loads(msg_str)
 
                 event = None
 
-                match msg_dic["type"]:
+                match msg["type"]:
                     case "shoot":
-                        event = UserShoot(user_id=user_id, time=time(), msg=msg_dic["content"])
+                        event = UserShoot(user_id=user_id, time=msg["time"], msg=msg["content"])
 
                     case "respawn":
-                        event = UserRespawn(user_id=user_id, time=time())
+                        event = UserRespawn(user_id=user_id, time=msg["time"])
 
                     case "PING":
                         self.send_user(user_id, {}, "PONG")
 
                     case _:
-                        raise NotImplementedError(f"Unknown event type: {msg_dic['type']}")
+                        raise NotImplementedError(f"Unknown event type: {msg['type']}")
 
                 for single_event in self.__events:
                     if type(single_event) == UserShoot and single_event.user_id == user_id:
@@ -214,14 +219,14 @@ class Server(socket.socket):
 
                 if event:
                     self.__events.append(event)
-                self._print(f"{user_id} SENT: {msg_dic}")
+                self._print(f"{user_id} SENT: {msg}", min_debug=2)
 
             except ConnectionResetError:
                 self._print(f"USER DISCONNECTED: {user_id}")
                 self.__events.append(UserRem(user_id=user_id, time=time()))
                 return
 
-            except TimeoutError:
+            except (TimeoutError, json.decoder.JSONDecodeError):
                 continue
 
             except OSError:
@@ -247,19 +252,19 @@ class Server(socket.socket):
             self.send_user(user_id, user_id, "ID")
             if self.game_map:
                 self.send_user(user_id, self.game_map, "map")
-
-            self.__events.append(UserAdd(user_id=user_id, time=time()))
+            self.__events.append(UserRem(user_id=user_id, time=time()))
             Thread(target=self.__client_receive_handler, args=(user_id, cl,)).start()
 
             self.__id_counter += 1
 
-    def _print(self, *msg: any) -> None:
+    def _print(self, *msg: any, min_debug: int | None = 1) -> None:
         """
         Only print if debug mode is on
 
         :param msg: Messages to print
+        :param min_debug: 1 - OnlyImportantInformations, 2 - LightDebug, 3 - FullDebug
         """
-        if self.debug_mode:
+        if self.debug_mode >= min_debug:
             print("SERVER:", *msg)
 
     def end(self) -> None:
@@ -271,8 +276,8 @@ class Server(socket.socket):
 
 
 if __name__ == "__main__":
-    s = Server(debug_mode=True)
-    import time  # noqa
+    s = Server(debug_mode=1, game_map={"a": "b"})
+    from time import sleep
     while True:
         s.send_all({"a": "b"})
-        time.sleep(1)
+        sleep(1)

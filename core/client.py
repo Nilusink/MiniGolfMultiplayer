@@ -12,6 +12,7 @@ Date:   29.06.2022
 #                                Import Modules                                #
 ################################################################################
 
+from core.debug import debug, all_methods
 from threading import Thread
 from time import time
 import socket
@@ -21,7 +22,8 @@ import json
 #                           Constants / Settings                              #
 ################################################################################
 
-SERVER_IP: str = "127.0.0.1"
+SERVER_IP: str = "192.168.0.138"
+LOCAL_IP: str = "127.0.0.1"
 ENCRYPTION: str = "UTF-8"
 PORT: int = 8888
 
@@ -38,19 +40,23 @@ class NotReceivedJet(Exception):
 #                                   Client                                     #
 ################################################################################
 
+@all_methods(debug)
 class Client(socket.socket):
     __received_msg: list[dict]
     __ping_trigger: int
-    debug_mode: bool
+    debug_mode: int
     __running: bool
     __game_map: dict
     __ID: str
 
-    def __init__(self, server_ip: str, port: int, debug_mode: bool | None = False) -> None:
+    def __init__(self, server_ip: str, port: int, debug_mode: int | None = 0) -> None:
         """
         Client for communicating between game calculating and game GUI
-        """
 
+        :param server_ip: IP of the server
+        :param port: Port
+        :param debug_mode: 0 - NoDebug, 1 - OnlyImportantInformations, 2 - LightDebug, 3 - FullDebug
+        """
         super().__init__(socket.AF_INET, socket.SOCK_STREAM)
         self.debug_mode = debug_mode
 
@@ -122,14 +128,16 @@ class Client(socket.socket):
                     msg_content = msg["content"]
                     match msg["type"]:
                         case "msg":
+                            self._print("GOT MSG", msg_content, min_debug=2)
                             self.__received_msg.append(msg_content)
                         case "ID":
-                            print("GOT ID", msg_content)
+                            self._print("GOT ID", msg_content)
                             self.__ID = msg_content
                         case "map":
-                            print("GOT MAP", msg_content)
+                            self._print("GOT MAP", msg_content)
                             self.__game_map = msg_content
                         case "PONG":
+                            self._print("GOT PONGED", msg_content, min_debug=2)
                             self.__ping_trigger = 0
                         case "_":
                             raise NotImplementedError("Invalid message received with type={msg['type']}")
@@ -152,7 +160,7 @@ class Client(socket.socket):
         :param msg: Message to send to the server
         :param msg_type: Type of the message to send (e.g: respawn)
         """
-        msg_dict = {"type": msg_type, "content": msg}
+        msg_dict = {"type": msg_type, "content": msg, "time": time()}
         msg_str = json.dumps(msg_dict)
         msg_byte = msg_str.encode(ENCRYPTION)
 
@@ -191,13 +199,14 @@ class Client(socket.socket):
         self._print(f"PING: {ping}")
         return ping
 
-    def _print(self, *msg: any) -> None:
+    def _print(self, *msg: any, min_debug: int | None = 1) -> None:
         """
         Only print if debug mode is on
 
         :param msg: Messages to print
+        :param min_debug: 1 - OnlyImportantInformations, 2 - LightDebug, 3 - FullDebug
         """
-        if self.debug_mode:
+        if self.debug_mode >= min_debug:
             print("CLIENT:", *msg)
 
     def end(self) -> None:
@@ -209,7 +218,7 @@ class Client(socket.socket):
 
 
 if __name__ == "__main__":
-    cl = Client(SERVER_IP, PORT, debug_mode=True)
+    cl = Client(LOCAL_IP, PORT, debug_mode=1)
     print("\n>>> Client - CMD - Control <<<")
     print("Commands: ")
     print(" - send_data(msg)    |   Send a message to the server")
