@@ -12,7 +12,7 @@ Date:   29.06.2022
 #                                Import Modules                                #
 ################################################################################
 
-from core.debug import debug, all_methods
+from core.debug import debug, all_callables
 from threading import Thread
 from time import time
 import socket
@@ -40,7 +40,7 @@ class NotReceivedJet(Exception):
 #                                   Client                                     #
 ################################################################################
 
-@all_methods(debug)
+@all_callables(debug)
 class Client(socket.socket):
     __received_msg: list[dict]
     __ping_trigger: int

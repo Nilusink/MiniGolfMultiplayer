@@ -11,7 +11,7 @@ Date:   29.06.2022
 #                                Import Modules                                #
 ################################################################################
 
-from core.debug import all_methods, debug
+from core.debug import all_callables, debug
 from dataclasses import dataclass
 from threading import Thread
 from typing import Union
@@ -80,7 +80,7 @@ class UserRespawn:
 #                                   Server                                     #
 ################################################################################
 
-@all_methods(debug)
+@all_callables(debug)
 class Server(socket.socket):
     __clients: dict[str, socket.socket]
     __events: list[Union[UserAdd, UserRem, UserShoot, UserRespawn]]
