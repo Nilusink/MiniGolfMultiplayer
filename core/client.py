@@ -124,8 +124,10 @@ class Client(socket.socket):
                         case "msg":
                             self.__received_msg.append(msg_content)
                         case "ID":
+                            print("GOT ID", msg_content)
                             self.__ID = msg_content
                         case "map":
+                            print("GOT MAP", msg_content)
                             self.__game_map = msg_content
                         case "PONG":
                             self.__ping_trigger = 0

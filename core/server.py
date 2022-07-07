@@ -126,7 +126,7 @@ class Server(socket.socket):
         self.__events = []
         return events
 
-    def send_user(self, user_id: str, msg: dict, msg_type: str | None = "msg") -> None:
+    def send_user(self, user_id: str, msg: dict | str, msg_type: str | None = "msg") -> None:
         """
         Sends messages to a single clients/users
 
@@ -134,7 +134,7 @@ class Server(socket.socket):
         :param msg: Message to send to all users/clients
         :param msg_type: Type of the message (e.g.: map)
         """
-        msg_dict = {"type": msg_type, "content": dumps(msg)}
+        msg_dict = {"type": msg_type, "content": msg}
         msg_str = f'@{dumps(msg_dict)}#'
         msg_byte = msg_str.encode(ENCRYPTION)
 
@@ -145,17 +145,16 @@ class Server(socket.socket):
         except OSError:
             return
 
-    def send_all(self, msg: list[dict] | dict, msg_type: str | None = "msg") -> None:
+    def send_all(self, msg: dict | str, msg_type: str | None = "msg") -> None:
         """
         Sends messages to all clients/users
 
         :param msg: Message to send to all users/clients
         :param msg_type: Type of the message (e.g.: map)
         """
-        msg_dict = {"type": msg_type, "content": dumps(msg)}
-        msg_str = f'@{msg_dict}#'
+        msg_dict = {"type": msg_type, "content": msg}
+        msg_str = f'@{dumps(msg_dict)}#'
         msg_byte = msg_str.encode(ENCRYPTION)
-
         for client in self.__clients.copy():
             try:
                 self.__clients[client].settimeout(None)
@@ -245,9 +244,9 @@ class Server(socket.socket):
             self.__clients[user_id] = cl
             self._print("NEW CLIENT: ", user_id, cl, add)
 
-            self.send_user(user_id, {"ID": user_id}, "ID")
+            self.send_user(user_id, user_id, "ID")
             if self.game_map:
-                self.send_user(user_id, {"map": self.game_map}, "map")
+                self.send_user(user_id, self.game_map, "map")
 
             self.__events.append(UserAdd(user_id=user_id, time=time()))
             Thread(target=self.__client_receive_handler, args=(user_id, cl,)).start()
@@ -272,4 +271,8 @@ class Server(socket.socket):
 
 
 if __name__ == "__main__":
-    Server(debug_mode=True)
+    s = Server(debug_mode=True)
+    import time  # noqa
+    while True:
+        s.send_all({"a": "b"})
+        time.sleep(1)
