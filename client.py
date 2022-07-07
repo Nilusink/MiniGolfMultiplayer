@@ -16,11 +16,17 @@ from time import sleep
 import typing as tp
 import math as m
 import pygame
+import time
 
 
 # Connection settings
 SERVER_IP: str = "192.168.0.138"
 SERVER_PORT: int = 8888
+
+
+# simulation settings   (will be fully fetched from server at some point)
+MAX_SPEED: float = 1    # the maximum player speed
+MAX_TIME: float = 4     # the maximum time a ball is on the move
 
 
 pygame.init()
@@ -48,7 +54,7 @@ class Ball(pygame.sprite.Sprite):
         super().__init__(Balls)
         self.color = (255, 0, 0, 255)
         self.player_color = (0, 255, 0, 255)
-        self.pos_x_y = pos
+        self.position = Vec2.from_cartesian(pos[0] * 2, pos[1])
         self.circle_radius = 12
         self.border_width = 0  # 0 = filled circle
 
@@ -77,8 +83,14 @@ class Ball(pygame.sprite.Sprite):
 
         return x, y
 
+    @property
+    def pos_x_y(self) -> tuple[float, float]:
+        x, y = self.position.xy
+        x /= 2
+        return x, y
+
     def update_pos(self, x: float, y: float) -> None:
-        self.pos_x_y = x, y
+        self.position.xy = x * 2, y
         self.update_rect()
 
     def update_rect(self) -> None:
@@ -86,7 +98,7 @@ class Ball(pygame.sprite.Sprite):
 
         self.rect = pygame.Rect(x, y, *(self.circle_radius * 2,) * 2)
 
-    def update(self) -> None:
+    def update(self, delta: float) -> None:
         self.image.fill((0, 0, 0, 0))
         if self.is_player:
             pygame.draw.circle(self.image, self.player_color, (self.circle_radius,) * 2, self.circle_radius)
@@ -98,11 +110,25 @@ class Ball(pygame.sprite.Sprite):
         tries_text = FONT.render(str(self.tries), True, (0, 0, 0, 255))
         self.image.blit(tries_text, (6, 6))
 
+        # simulate
+        if self.velocity.length == 0:
+            return
+
+        self.position += self.velocity * delta
+
+        if self.velocity.length > 0:
+            self.velocity.length -= (MAX_SPEED / MAX_TIME) * delta
+
+        else:
+            self.velocity.length = 0
+
         self.update_rect()
 
 
 # create client
 client = Client(server_ip=SERVER_IP, port=SERVER_PORT, debug_mode=True)
+
+print("getting map")
 while True:
     with suppress(NotReceivedJet):
         data = client.game_map
@@ -182,6 +208,7 @@ def main() -> None:
     Thread(target=update_handler).start()
 
     player: Ball = ...
+    last_time = time.perf_counter()
     while active:
         window_size = (screen_info.current_w, screen_info.current_h)
         w_w = window_size[0]
@@ -282,7 +309,11 @@ def main() -> None:
                             "vector": [delta.x, delta.y]
                         })
 
-        Balls.update()
+        now = time.perf_counter()
+        delta = now - last_time
+        last_time = now
+
+        Balls.update(delta)
         Balls.draw(top_layer)
 
         # draw PERM_SHOW
