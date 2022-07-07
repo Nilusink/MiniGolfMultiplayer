@@ -9,14 +9,13 @@ Nilusink
 MelonenBuby
 """
 
-from core.client import Client, Thread
+from core.client import Client, Thread, NotReceivedJet
 from traceback import format_exc
 from core.classes import Vec2
 from time import sleep
 import typing as tp
 import math as m
 import pygame
-import json
 
 
 # Connection settings
@@ -102,11 +101,17 @@ class Ball(pygame.sprite.Sprite):
         self.update_rect()
 
 
-with open('Maps/Map1.json') as f:
-    data = json.load(f)
-
 # create client
 client = Client(server_ip=SERVER_IP, port=SERVER_PORT, debug_mode=True)
+while True:
+    try:
+        data = client.game_map
+        print("looping")
+
+    except NotReceivedJet:
+        continue
+
+print("got map")
 
 
 def main() -> None:
@@ -126,9 +131,14 @@ def main() -> None:
         handle server updates
         """
         nonlocal player
+        global data
 
         while active:
             try:
+                # update map
+                data = client.game_map
+
+                # update balls
                 ball_pos = client.received_msg
                 if ball_pos is None:
                     sleep(0.01)

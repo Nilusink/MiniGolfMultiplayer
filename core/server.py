@@ -59,7 +59,7 @@ class UserRem: # noqa
 @dataclass(frozen=True)
 class UserShoot: # noqa
     """
-    Event for user data / shoots
+    Event for user shoots
     """
     user_id: str
     time: float

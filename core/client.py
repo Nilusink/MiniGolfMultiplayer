@@ -74,7 +74,7 @@ class Client(socket.socket):
     @property
     def game_map(self) -> dict:
         if self.__game_map != {}:
-            return self.__game_map
+            return self.__game_map.copy()
         raise NotReceivedJet("Server haven't sent a map jet or it's just empty")
 
     @property

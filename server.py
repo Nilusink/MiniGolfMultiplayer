@@ -35,10 +35,10 @@ def main() -> None:
         p0 = Vec2.from_cartesian(points["p1_x"] * 2, points["p1_y"])
         p1 = Vec2.from_cartesian(points["p2_x"] * 2, points["p2_y"])
 
-        Wall(p0, p1)
+        Wall(p0, p1, 1)
 
     # Create Server
-    server = Server(debug_mode=True)
+    server = Server(debug_mode=True, game_map=config)
     print("started server, running pygame")
 
     def server_handler() -> None:
@@ -97,26 +97,30 @@ def main() -> None:
 
             server.send_all(out)
 
+    def calculator() -> None:
+        """
+        calculate the ball positions
+        """
+        last_time = time.perf_counter()
+        while running:
+            this_time = time.perf_counter()
+            time_delta = this_time - last_time
+            last_time = this_time
+
+            Balls.update(time_delta)
+
     Thread(target=server_handler).start()
     Thread(target=send_updates).start()
+    Thread(target=calculator).start()
 
     # pygame loop
-    last_time = time.perf_counter()
-
     while running:
-        this_time = time.perf_counter()
-        time_delta = this_time - last_time
-        last_time = this_time
-
         # clear layers
         BaseGame.screen.fill((0, 0, 0, 0))
         BaseGame.lowest_layer.fill((0, 0, 0, 0))
         BaseGame.wall_layer.fill((0, 0, 0, 0))
         BaseGame.middle_layer.fill((0, 0, 0, 0))
         BaseGame.top_layer.fill((0, 0, 0, 0))
-
-        # update groups
-        Balls.update(time_delta)
 
         # draw groups
         Walls.draw(BaseGame.wall_layer)
